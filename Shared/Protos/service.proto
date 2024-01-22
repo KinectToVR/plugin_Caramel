@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+service Caramethyst {
+  rpc Ping (PingRequest) returns (PingReply) {};
+  rpc SendPoses (stream JointPose) returns (google.protobuf.Empty) {};
+}
+
+message PingRequest {
+  string name = 1;
+}
+
+message PingReply {
+  string message = 1;
+}
+
+message Vector3
+{
+  double x = 1;
+  double y = 2;
+  double z = 3;
+}
+
+enum IJointType
+{  
+  JointHead = 0;
+  JointNeck = 1;
+  JointSpineShoulder = 2;
+  JointShoulderLeft = 3;
+  JointElbowLeft = 4;
+  JointWristLeft = 5;
+  JointHandLeft = 6;
+  JointHandTipLeft = 7;
+  JointThumbLeft = 8;
+  JointShoulderRight = 9;
+  JointElbowRight = 10;
+  JointWristRight = 11;
+  JointHandRight = 12;
+  JointHandTipRight = 13;
+  JointThumbRight = 14;
+  JointSpineMiddle = 15;
+  JointSpineWaist = 16;
+  JointHipLeft = 17;
+  JointKneeLeft = 18;
+  JointFootLeft = 19;
+  JointFootTipLeft = 20;
+  JointHipRight = 21;
+  JointKneeRight = 22;
+  JointFootRight = 23;
+  JointFootTipRight = 24;
+}
+
+message JointPose
+{
+  Vector3 position = 1;
+  Vector3 rotation = 2;
+  IJointType role = 3;
+}
