@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.002.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Caramel.Client", "Caramel.Client.csproj", "{9DFF507D-FEC2-459C-83B1-3C8919F6FF3B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9DFF507D-FEC2-459C-83B1-3C8919F6FF3B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9DFF507D-FEC2-459C-83B1-3C8919F6FF3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9DFF507D-FEC2-459C-83B1-3C8919F6FF3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9DFF507D-FEC2-459C-83B1-3C8919F6FF3B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5FDB34C8-D241-4732-9F4A-29FCC364D0FC}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,21 @@
+
+jobs:
+- job: iOS
+  pool:
+    vmImage: 'macOS-13'
+
+  steps:
+  - bash: 'brew install --cask xamarin-ios'
+    displayName: 'Bash Script'
+
+  - task: NuGetCommand@2
+    inputs:
+      restoreSolution: '**/*.sln'
+
+  - task: XamariniOS@2
+    inputs:
+      solutionFile: 'Caramel.Client/Caramel.Client.csproj'
+      configuration: 'Release'
+      buildForSimulator: true
+      packageApp: false
+      args: '/p:ArchiveOnBuild=true'

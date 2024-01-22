@@ -6,84 +6,94 @@ using System.Net.Sockets;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using Grpc.Net.Client;
 using UIKit;
 
-namespace Caramel.Client;
-
-public partial class SettingsViewController : UITableViewController
+namespace Caramel.Client
 {
-    public SettingsViewController(IntPtr handle) : base(handle)
+    public partial class SettingsViewController : UITableViewController
     {
-    }
-
-    public override void ViewDidLoad()
-    {
-        base.ViewDidLoad();
-
-        AddressField.EditingDidEnd += UpdateSenderAddress;
-        PortField.EditingDidEnd += UpdateSenderAddress;
-
-        Xamarin.IQKeyboardManager.SharedManager.Enable = true;
-        Xamarin.IQKeyboardManager.SharedManager.ShouldToolbarUsesTextFieldTintColor = true;
-
-        Task.Run(async () =>
+        public SettingsViewController(IntPtr handle) : base(handle)
         {
-            await Task.Delay(1500);
-            await RunAmethystDiscovery();
-        });
-    }
+        }
 
-    private async Task RunAmethystDiscovery()
-    {
-        var udpClient = new UdpClient { EnableBroadcast = true };
-        var clientGuid = Guid.NewGuid().ToString().ToUpper();
-        var requestData = Encoding.ASCII.GetBytes(clientGuid);
-        await udpClient.SendAsync(requestData, requestData.Length, new IPEndPoint(IPAddress.Broadcast, 8649));
+        public override void ViewDidLoad()
+        {
+            base.ViewDidLoad();
 
-        var serverEndPoint = new IPEndPoint(IPAddress.Any, 0);
-        var serverResponseData = udpClient.Receive(ref serverEndPoint);
-        var serverResponse = Encoding.ASCII.GetString(serverResponseData);
-        // Console.WriteLine($"Received {serverResponse} from {serverEndPoint.Address}");
+            AddressField.EditingDidEnd += UpdateSenderAddress;
+            PortField.EditingDidEnd += UpdateSenderAddress;
+            DiscoveryButton.TouchUpInside += DiscoveryButton_TouchUpInside;
 
-        udpClient.Close();
-        // Console.WriteLine($"Server is advertising at {serverResponse}:{serverEndPoint.Port}");
-        await UpdateSenderAddress(serverResponse, serverEndPoint.Port.ToString(), client: clientGuid);
-    }
+            Xamarin.IQKeyboardManager.SharedManager.Enable = true;
+            Xamarin.IQKeyboardManager.SharedManager.ShouldToolbarUsesTextFieldTintColor = true;
 
-    private async Task UpdateSenderAddress(string address, string port,
-        bool discovery = true, string client = "CaramelApp")
-    {
-        if (!int.TryParse(port, out var serverPort) || !IPAddress.TryParse(address, out _)) return;
-        if (discovery)
+            Task.Run(async () =>
+            {
+                await Task.Delay(1500);
+                await RunAmethystDiscovery();
+            });
+        }
+
+        private void DiscoveryButton_TouchUpInside(object sender, EventArgs e)
+        {
+            Task.Run(RunAmethystDiscovery);
+        }
+
+        private async Task RunAmethystDiscovery()
+        {
+            var udpClient = new UdpClient { EnableBroadcast = true };
+            var clientGuid = Guid.NewGuid().ToString().ToUpper();
+            var requestData = Encoding.ASCII.GetBytes(clientGuid);
+            await udpClient.SendAsync(requestData, requestData.Length, new IPEndPoint(IPAddress.Broadcast, 8649));
+
+            var serverEndPoint = new IPEndPoint(IPAddress.Any, 0);
+            var serverResponseData = udpClient.Receive(ref serverEndPoint);
+            var serverResponse = Encoding.ASCII.GetString(serverResponseData);
+            // Console.WriteLine($"Received {serverResponse} from {serverEndPoint.Address}");
+
+            udpClient.Close();
+            // Console.WriteLine($"Server is advertising at {serverResponse}:{serverEndPoint.Port}");
+            await UpdateSenderAddress(serverResponse, serverEndPoint.Port.ToString(), client: clientGuid);
+        }
+
+        private async Task UpdateSenderAddress(string address, string port,
+            bool discovery = true, string client = "CaramelApp")
+        {
+            if (!int.TryParse(port, out var serverPort) || !IPAddress.TryParse(address, out _)) return;
+            if (discovery)
+                try
+                {
+                    AddressField.Text = address;
+                    PortField.Text = port;
+                }
+                catch
+                {
+                    // ignored
+                }
+
+            // Update the sender (client) and ping the service
             try
             {
-                AddressField.Text = address;
-                PortField.Text = port;
+                lock (ArKitSkeletonDelegate.GrpLocker)
+                {
+                    // Update the server sender
+                    ArKitSkeletonDelegate.GrpcChannel = GrpcChannel.ForAddress($"http://{address}:{serverPort}",
+                        new GrpcChannelOptions { Credentials = ChannelCredentials.Insecure });
+                    ArKitSkeletonDelegate.Client = new Caramethyst.CaramethystClient(ArKitSkeletonDelegate.GrpcChannel);
+                }
+
+                await ArKitSkeletonDelegate.Client.PingAsync(new PingRequest { Name = client });
             }
-            catch
+            catch (Exception)
             {
                 // ignored
             }
-
-        // Update the sender (client) and ping the service
-        try
-        {
-            lock (ArKitSkeletonDelegate.GrpLocker)
-            {
-                // Update the server sender
-                ArKitSkeletonDelegate.GrpChannel = new Channel(address, serverPort, ChannelCredentials.Insecure);
-                ArKitSkeletonDelegate.Client = new Caramethyst.CaramethystClient(ArKitSkeletonDelegate.GrpChannel);
-            }
-            await ArKitSkeletonDelegate.Client.PingAsync(new PingRequest { Name = client });
         }
-        catch (Exception)
-        {
-            // ignored
-        }
-    }
 
-    private void UpdateSenderAddress(object sender, EventArgs e)
-    {
-        _ = UpdateSenderAddress(AddressField.Text, PortField.Text, false);
+        private void UpdateSenderAddress(object sender, EventArgs e)
+        {
+            _ = UpdateSenderAddress(AddressField.Text, PortField.Text, false);
+        }
     }
 }

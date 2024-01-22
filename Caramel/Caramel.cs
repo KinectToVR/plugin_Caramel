@@ -28,6 +28,9 @@ namespace Caramel
     [Export(typeof(ITrackingDevice))]
     [ExportMetadata("Name", "Caramel")]
     [ExportMetadata("Guid", "HNOAKAYA-AME2-APII-DVCE-CARAMLAMTHST")]
+    [ExportMetadata("Publisher", "公彦赤屋先, MochiDoesVR")]
+    [ExportMetadata("Version", "1.0.0.0")]
+    [ExportMetadata("Website", "https://github.com/KimihikoAkayasaki/plugin_Caramel")]
     public class Caramel : ITrackingDevice
     {
         public enum HandlerStatus

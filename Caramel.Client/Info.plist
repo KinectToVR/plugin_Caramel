@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>Caramel for VRChat</string>
+	<string>Caramel for Amethyst</string>
 	<key>CFBundleIdentifier</key>
 	<string>dev.mochidoesvr.caramel</string>
 	<key>CFBundleShortVersionString</key>
@@ -67,6 +67,6 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Your iPhone&apos;s back-facing camera is used for full body tracking</string>
 	<key>CFBundleName</key>
-	<string>Caramel for VRChat</string>
+	<string>Caramel for Amethyst</string>
 </dict>
 </plist>

@@ -11,16 +11,24 @@ namespace Caramel.Client
 {
 	[Register ("SettingsViewController")]
 	partial class SettingsViewController
-	{
-		[Outlet]
+    {
+        [Outlet]
+        UIKit.UIButton DiscoveryButton { get; set; }
+
+        [Outlet]
 		UIKit.UITextField AddressField { get; set; }
 
 		[Outlet]
 		UIKit.UITextField PortField { get; set; }
 		
 		void ReleaseDesignerOutlets ()
-		{
-			if (AddressField != null) {
+        {
+            if (AddressField != null) {
+                DiscoveryButton.Dispose();
+                DiscoveryButton = null;
+            }
+
+            if (AddressField != null) {
 				AddressField.Dispose ();
 				AddressField = null;
 			}
