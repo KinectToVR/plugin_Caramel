@@ -1,7 +1,7 @@
 {
-  "version": "1.0.0.0",
+  "version": "1.0.0.1",
   "display_name": "Caramel (ARKit)",
   "download": "plugin_Caramel.zip",
-  "changelog": "Added all plugin solution files.",
+  "changelog": "Updated the plugin contract.",
   "guid": "HNOAKAYA-AME2-APII-DVCE-CARAMLAMTHST"
 }

@@ -29,7 +29,7 @@ namespace Caramel
     [ExportMetadata("Name", "Caramel")]
     [ExportMetadata("Guid", "HNOAKAYA-AME2-APII-DVCE-CARAMLAMTHST")]
     [ExportMetadata("Publisher", "公彦赤屋先, MochiDoesVR")]
-    [ExportMetadata("Version", "1.0.0.0")]
+    [ExportMetadata("Version", "1.0.0.1")]
     [ExportMetadata("Website", "https://github.com/KimihikoAkayasaki/plugin_Caramel")]
     public class Caramel : ITrackingDevice
     {
