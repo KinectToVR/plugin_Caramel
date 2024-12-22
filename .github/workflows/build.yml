@@ -3,89 +3,34 @@ name: Check-Build
 on: [push]
 
 jobs:
-  # plugin:
-  #   runs-on: windows-latest
-  #   strategy:
-  #     matrix:
-  #       dotnet-version: ['7.0.x' ]
+  build:
 
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #     - uses: actions/setup-dotnet@v3
-  #       with:
-  #         dotnet-version: '7.0.x'
-          
-  #     - name: Restore and build (publish)
-  #       run: dotnet publish Caramel\Caramel.csproj --configuration Release /p:PublishProfile=Caramel\Properties\PublishProfiles\FolderProfile.pubxml
-
-  #     - name: Pack published files
-  #       run: |
-  #         cd Caramel/bin/Release/net7.0/win10-x64/publish
-  #         7z a plugin_Caramel.zip *
-        
-  #     - name: Upload plugin artifact
-  #       uses: "marvinpinto/action-automatic-releases@latest"
-  #       with:
-  #         repo_token: "${{ secrets.GITHUB_TOKEN }}"
-  #         automatic_release_tag: "latest"
-  #         prerelease: true
-  #         title: "plugin_Caramel Build Artifact"
-  #         files: |
-  #           ./Caramel/bin/Release/net7.0/win10-x64/publish/plugin_Caramel.zip
-  #           ./external/manifest.json
-            
-  app:
-    # needs: plugin
-    runs-on: macos-13
+    runs-on: windows-latest
     strategy:
       matrix:
         dotnet-version: ['7.0.x' ]
 
     steps:
       - uses: actions/checkout@v3
-
-      - name: Install Xamarin.iOS
-        run: brew install --cask xamarin-ios
-
-      - name: Download Visual Studio for Mac
-        run: curl https://download.visualstudio.microsoft.com/download/pr/ceb0ea3f-4db8-46b4-8dc3-8049d27c0107/91eb158e928097dcb6e42ece2db7ebac/visualstudioformac-17.6.7.417-arm64.dmg -o /tmp/vsformac.dmg
-      
-      - name: Mount Visual Studio for Mac dmg
-        run: hdiutil attach /tmp/vsformac.dmg
-      
-      - name: Extract MSBuild
-        run: cp -R /Volumes/Visual\ Studio/Visual\ Studio.app/Contents/MonoBundle/MSBuild/Current/bin /tmp/msbuild
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+      - uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: 7.0.x
-
-      - name: Restore dependencies with dotnet restore
-        run: dotnet restore SharpOSC.iOS/SharpOSC.iOS.csproj && dotnet restore Caramel.Client/Caramel.Client.csproj
-
-      - name: Restore dependencies with nuget restore
-        run: nuget restore SharpOSC.iOS/SharpOSC.iOS.csproj && nuget restore Caramel.Client/Caramel.Client.csproj
-      
-      - name: Select Xcode 15
-        run: sudo xcode-select -s /Applications/Xcode_15.0.1.app
-
-      # - name: Build
-      #   run: mono '/tmp/msbuild/MSBuild.dll' Caramel.Client/Caramel.Client.csproj /p:Configuration='Release' /t:Build /p:Platform='iPhone' /p:BuildIpa=true /p:EnableCodeSigning=false
-
+          dotnet-version: '7.0.x'
+          
       - name: Restore and build (publish)
-        run: |
-          mono '/tmp/msbuild/MSBuild.dll' Caramel.Client/Caramel.Client.csproj /p:Configuration=Release /p:ArchiveOnBuild=true /t:"Build"
+        run: dotnet publish --configuration Release /p:PublishProfile=Caramel\Properties\PublishProfiles\FolderProfile.pubxml
 
       - name: Pack published files
         run: |
-          cd Caramel.Client/bin/iPhoneSimulator/Release && mkdir Payload
-          mv Caramel.Client.app Payload/Caramel.Client.app && zip -r Caramel.Client.ipa Payload
+          cd Caramel/bin/Release/net7.0/win10-x64/publish
+          7z a plugin_Caramel.zip *
         
-      - name: Upload app artifact
-        uses: svenstaro/upload-release-action@v2
+      - name: Upload plugin artifact
+        uses: "marvinpinto/action-automatic-releases@latest"
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: latest
-          file: ./Caramel.Client/bin/iPhoneSimulator/Release/Caramel.Client.ipa
-          overwrite: true
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: true
+          title: "plugin_Caramel Build Artifact"
+          files: |
+            ./Caramel/bin/Release/net7.0/win10-x64/publish/plugin_Caramel.zip
+            ./external/manifest.json
