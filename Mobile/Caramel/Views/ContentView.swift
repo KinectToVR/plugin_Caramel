@@ -17,7 +17,7 @@ struct ContentView: View {
                 Color.black
                     .edgesIgnoringSafeArea(.all)
                     .onTapGesture {
-                        resetInactivityTimer()
+                        resetInactivityTimer(settings: settingsView)
                         withAnimation(.easeInOut(duration: 0.5)) {
                             showOverlay.toggle()
                         }
@@ -29,7 +29,7 @@ struct ContentView: View {
         .persistentSystemOverlays(showOverlay ? (.hidden) : (.automatic))
         .toolbar(.hidden, for: .tabBar)
         .onTapGesture {
-            resetInactivityTimer()
+            resetInactivityTimer(settings: settingsView)
         }
         .onTapGesture(count: 2) {
             withAnimation(.easeInOut(duration: 0.5)) {
@@ -37,26 +37,30 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            startInactivityTimer()
+            startInactivityTimer(settings: settingsView)
         }
         .onDisappear {
             timer?.invalidate()
         }
     }
 
-    private func startInactivityTimer() {
+    private func startInactivityTimer(settings: SettingsView) {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) {
             _ in
-            withAnimation(.easeInOut(duration: 0.5)) {
-                showOverlay = true
+            if settings.blockInteractions {
+                startInactivityTimer(settings: settings)
+            } else {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    showOverlay = true
+                }
             }
         }
     }
 
-    private func resetInactivityTimer() {
+    private func resetInactivityTimer(settings: SettingsView) {
         lastTapTime = Date()
-        startInactivityTimer()
+        startInactivityTimer(settings: settings)
     }
 }
 

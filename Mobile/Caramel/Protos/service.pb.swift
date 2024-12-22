@@ -49,13 +49,13 @@ struct Caramel_DataQuaternion: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  var w: Double = 0
+  var w: Float = 0
 
-  var x: Double = 0
+  var x: Float = 0
 
-  var y: Double = 0
+  var y: Float = 0
 
-  var z: Double = 0
+  var z: Float = 0
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -67,11 +67,11 @@ struct Caramel_DataVector: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  var x: Double = 0
+  var x: Float = 0
 
-  var y: Double = 0
+  var y: Float = 0
 
-  var z: Double = 0
+  var z: Float = 0
 
   var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -196,10 +196,10 @@ extension Caramel_DataQuaternion: SwiftProtobuf.Message, SwiftProtobuf._MessageI
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularDoubleField(value: &self.w) }()
-      case 2: try { try decoder.decodeSingularDoubleField(value: &self.x) }()
-      case 3: try { try decoder.decodeSingularDoubleField(value: &self.y) }()
-      case 4: try { try decoder.decodeSingularDoubleField(value: &self.z) }()
+      case 1: try { try decoder.decodeSingularFloatField(value: &self.w) }()
+      case 2: try { try decoder.decodeSingularFloatField(value: &self.x) }()
+      case 3: try { try decoder.decodeSingularFloatField(value: &self.y) }()
+      case 4: try { try decoder.decodeSingularFloatField(value: &self.z) }()
       default: break
       }
     }
@@ -207,16 +207,16 @@ extension Caramel_DataQuaternion: SwiftProtobuf.Message, SwiftProtobuf._MessageI
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
     if self.w.bitPattern != 0 {
-      try visitor.visitSingularDoubleField(value: self.w, fieldNumber: 1)
+      try visitor.visitSingularFloatField(value: self.w, fieldNumber: 1)
     }
     if self.x.bitPattern != 0 {
-      try visitor.visitSingularDoubleField(value: self.x, fieldNumber: 2)
+      try visitor.visitSingularFloatField(value: self.x, fieldNumber: 2)
     }
     if self.y.bitPattern != 0 {
-      try visitor.visitSingularDoubleField(value: self.y, fieldNumber: 3)
+      try visitor.visitSingularFloatField(value: self.y, fieldNumber: 3)
     }
     if self.z.bitPattern != 0 {
-      try visitor.visitSingularDoubleField(value: self.z, fieldNumber: 4)
+      try visitor.visitSingularFloatField(value: self.z, fieldNumber: 4)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -245,9 +245,9 @@ extension Caramel_DataVector: SwiftProtobuf.Message, SwiftProtobuf._MessageImple
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularDoubleField(value: &self.x) }()
-      case 2: try { try decoder.decodeSingularDoubleField(value: &self.y) }()
-      case 3: try { try decoder.decodeSingularDoubleField(value: &self.z) }()
+      case 1: try { try decoder.decodeSingularFloatField(value: &self.x) }()
+      case 2: try { try decoder.decodeSingularFloatField(value: &self.y) }()
+      case 3: try { try decoder.decodeSingularFloatField(value: &self.z) }()
       default: break
       }
     }
@@ -255,13 +255,13 @@ extension Caramel_DataVector: SwiftProtobuf.Message, SwiftProtobuf._MessageImple
 
   func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
     if self.x.bitPattern != 0 {
-      try visitor.visitSingularDoubleField(value: self.x, fieldNumber: 1)
+      try visitor.visitSingularFloatField(value: self.x, fieldNumber: 1)
     }
     if self.y.bitPattern != 0 {
-      try visitor.visitSingularDoubleField(value: self.y, fieldNumber: 2)
+      try visitor.visitSingularFloatField(value: self.y, fieldNumber: 2)
     }
     if self.z.bitPattern != 0 {
-      try visitor.visitSingularDoubleField(value: self.z, fieldNumber: 3)
+      try visitor.visitSingularFloatField(value: self.z, fieldNumber: 3)
     }
     try unknownFields.traverse(visitor: &visitor)
   }

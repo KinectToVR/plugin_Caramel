@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel.Composition;
+using System.Diagnostics;
 using System.Net;
 using System.Numerics;
 using Windows.Networking;
@@ -173,7 +174,7 @@ public class Caramel : ITrackingDevice
             RefreshIPs();
 
             AdvertiseToken = new CancellationTokenSource();
-            Task.Run(() => AdvertiseService(AdvertiseToken.Token));
+            AdvertiseService(AdvertiseToken.Token);
 
             Host?.Log("Setting up the gRPC server...");
             GrpServer = new Server
@@ -239,13 +240,13 @@ public class Caramel : ITrackingDevice
         Host?.Log($"Tried to signal joint with ID: {jointId}!");
     }
 
-    public void PushJointPose(DataJoint joint)
+    public void PushJointPose(DataJoint joint, TrackedJointType? typeOverride = null)
     {
         IsSkeletonTracked = true; // There has to be smth
-        TrackedJoints[(int)CaramelService.JointDictionary[joint.Name]]
+        TrackedJoints[(int)(typeOverride ?? CaramelService.JointDictionary[joint.Name])]
             .TrackingState = TrackedJointState.StateTracked;
 
-        TrackedJoints[(int)CaramelService.JointDictionary[joint.Name]]
+        TrackedJoints[(int)(typeOverride ?? CaramelService.JointDictionary[joint.Name])]
             .Position = new Vector3
         {
             X = joint.Position.X,
@@ -253,7 +254,7 @@ public class Caramel : ITrackingDevice
             Z = joint.Position.Z
         };
 
-        TrackedJoints[(int)CaramelService.JointDictionary[joint.Name]]
+        TrackedJoints[(int)(typeOverride ?? CaramelService.JointDictionary[joint.Name])]
             .Orientation = new Quaternion
         {
             W = joint.Orientation.W,
@@ -263,7 +264,7 @@ public class Caramel : ITrackingDevice
         };
     }
 
-    private async Task AdvertiseService(CancellationToken token)
+    private void AdvertiseService(CancellationToken token)
     {
         try
         {
@@ -316,6 +317,7 @@ public class Caramel : ITrackingDevice
 
 public class CaramelService(Caramel parent) : DataHost.DataHostBase
 {
+    private int RefreshCounter { get; set; } = -1;
     private Caramel Host { get; } = parent;
     private System.Timers.Timer TimeoutTimer { get; set; }
 
@@ -333,13 +335,11 @@ public class CaramelService(Caramel parent) : DataHost.DataHostBase
         { "spine_7_joint", TrackedJointType.JointSpineShoulder },
         { "left_shoulder_1_joint", TrackedJointType.JointShoulderLeft },
         { "left_forearm_joint", TrackedJointType.JointElbowLeft },
-        { "left_hand_joint", TrackedJointType.JointWristLeft },
         { "left_hand_joint", TrackedJointType.JointHandLeft },
         { "left_handMid_3_joint", TrackedJointType.JointHandTipLeft },
         { "left_handThumb_2_joint", TrackedJointType.JointThumbLeft },
         { "right_shoulder_1_joint", TrackedJointType.JointShoulderRight },
         { "right_forearm_joint", TrackedJointType.JointElbowRight },
-        { "right_hand_joint", TrackedJointType.JointWristRight },
         { "right_hand_joint", TrackedJointType.JointHandRight },
         { "right_handMid_3_joint", TrackedJointType.JointHandTipRight },
         { "right_handThumb_2_joint", TrackedJointType.JointThumbRight },
@@ -355,11 +355,41 @@ public class CaramelService(Caramel parent) : DataHost.DataHostBase
         { "right_toes_joint", TrackedJointType.JointFootTipRight }
     };
 
+    public static readonly Dictionary<TrackedJointType, string> JointDictionaryReverse = new()
+    {
+        { TrackedJointType.JointHead, "head_joint" },
+        { TrackedJointType.JointNeck, "neck_1_joint" },
+        { TrackedJointType.JointSpineShoulder, "spine_7_joint" },
+        { TrackedJointType.JointShoulderLeft, "left_shoulder_1_joint" },
+        { TrackedJointType.JointElbowLeft, "left_forearm_joint" },
+        { TrackedJointType.JointWristLeft, "left_hand_joint" },
+        { TrackedJointType.JointHandLeft, "left_hand_joint" },
+        { TrackedJointType.JointHandTipLeft, "left_handMid_3_joint" },
+        { TrackedJointType.JointThumbLeft, "left_handThumb_2_joint" },
+        { TrackedJointType.JointShoulderRight, "right_shoulder_1_joint" },
+        { TrackedJointType.JointElbowRight, "right_forearm_joint" },
+        { TrackedJointType.JointWristRight, "right_hand_joint" },
+        { TrackedJointType.JointHandRight, "right_hand_joint" },
+        { TrackedJointType.JointHandTipRight, "right_handMid_3_joint" },
+        { TrackedJointType.JointThumbRight, "right_handThumb_2_joint" },
+        { TrackedJointType.JointSpineMiddle, "spine_4_joint" },
+        { TrackedJointType.JointSpineWaist, "hips_joint" },
+        { TrackedJointType.JointHipLeft, "left_upLeg_joint" },
+        { TrackedJointType.JointKneeLeft, "left_leg_joint" },
+        { TrackedJointType.JointFootLeft, "left_foot_joint" },
+        { TrackedJointType.JointFootTipLeft, "left_toes_joint" },
+        { TrackedJointType.JointHipRight, "right_upLeg_joint" },
+        { TrackedJointType.JointKneeRight, "right_leg_joint" },
+        { TrackedJointType.JointFootRight, "right_foot_joint" },
+        { TrackedJointType.JointFootTipRight, "right_toes_joint" }
+    };
+
     public override Task<StatusResponse> PingDriverService(Empty request, ServerCallContext context)
     {
         try
         {
             Host?.Host?.Log("Client pinged the service!");
+            RefreshCounter = RefreshCounter < 0 ? 100 : RefreshCounter + 1;
             var statusBackup = Host!.DeviceStatus;
             Host!.DeviceStatus = (int)Caramel.HandlerStatus.ServiceSuccess;
             if (statusBackup != Host!.DeviceStatus) Host!.UpdateSettingsInterface();
@@ -381,21 +411,37 @@ public class CaramelService(Caramel parent) : DataHost.DataHostBase
             // Download all joint messages and send them to the handler
             await foreach (var data in requestStream.ReadAllAsync())
             {
-                // Console.WriteLine($"Received data for {data.Name}");
+                // Debug.WriteLine($"Received data for {data.Name}");
                 Host?.PushJointPose(data);
 
-                // Restart the connection timer that checks for dead connection
-                var statusBackup = Host!.DeviceStatus;
-                Host!.DeviceStatus = (int)Caramel.HandlerStatus.ServiceSuccess;
-                if (statusBackup != Host!.DeviceStatus) Host!.UpdateSettingsInterface();
-                RestartTimeoutTimerWatchdog(); // Re-initialize the timer and restart
+                // ReSharper disable once ConvertIfStatementToSwitchStatement
+                if (data.Name is "left_hand_joint")
+                    Host?.PushJointPose(data, TrackedJointType.JointWristLeft);
+                if (data.Name is "right_hand_joint")
+                    Host?.PushJointPose(data, TrackedJointType.JointWristRight);
 
-                if (data.Name is not "head_joint") continue;
+                if (data.Name is not "head_joint" || RefreshCounter < 3) continue;
 
                 // Set Status to true when the preview is active and we need all joints
                 var requestedJointsResponse = new JointsResponse();
-                JointDictionary.Keys.ToList().ForEach(requestedJointsResponse.Names.Add); // TODO
+
+                try
+                {
+                    var joints = ((Host!.Host as dynamic)?.GetEnabledJoints() as List<TrackedJointType>)!;
+                    joints.ForEach(x => requestedJointsResponse.Names.Add(JointDictionaryReverse[x]));
+
+                    Enum.GetValues<TrackedJointType>() // Mark all unused joints as not tracked
+                        .Where(x => !joints.Contains(x) && x is not TrackedJointType.JointManual)
+                        .ToList().ForEach(x => Host.PushJointPose(new DataJoint { IsTracked = false }, x));
+                }
+                catch (Exception ex)
+                {
+                    requestedJointsResponse.Names.Clear();
+                    requestedJointsResponse.Names.Add("head_joint");
+                }
+
                 await responseStream.WriteAsync(requestedJointsResponse);
+                RefreshCounter = 0; // No need to stream those again
             }
         }
         catch (Exception ex)
@@ -411,7 +457,7 @@ public class CaramelService(Caramel parent) : DataHost.DataHostBase
             TimeoutTimer.Elapsed -= ServerTimeoutHandler;
             TimeoutTimer.Enabled = false;
         }
-        catch
+        catch (Exception)
         {
             // ignored
         }

@@ -21,6 +21,8 @@ struct SettingsView: View {
     @State private var connectionErrorText: String = ""
 
     public var streamManager = JointDataStreamManager()
+    private var timer = Timer.publish(every: 1, on: .main, in: .common)
+        .autoconnect()
 
     var hasValidAddress: Bool {
         var socketAddress = sockaddr_in()
@@ -223,6 +225,29 @@ struct SettingsView: View {
                 if !(await setupClient()) { _ = await runDiscovery() }
             }
         })
+        .onReceive(
+            timer,
+            perform: { _ in
+                if blockInteractions {
+                    return
+                }
+
+                Task {
+                    do {
+                        let data = try await dataClient!.pingDriverService(
+                            Google_Protobuf_Empty(),
+                            callOptions: CallOptions(
+                                timeLimit: .timeout(.seconds(1))))
+
+                        print("Received: \(data.status)")
+                        isConnected = data.status == 1
+                    } catch {
+                        print("Failed: \(error)")
+                        connectionErrorText = error.localizedDescription
+                        isConnected = false
+                    }
+                }
+            })
     }
 
     private func updateConnectionDetails(_ _ip: String?, _ _port: String?) async
@@ -404,15 +429,15 @@ struct SettingsView: View {
         joint.isTracked = isTracked
 
         joint.position = Caramel_DataVector()
-        joint.position.x = Double(position.x)
-        joint.position.y = Double(position.y)
-        joint.position.z = Double(position.z)
+        joint.position.x = position.x
+        joint.position.y = position.y
+        joint.position.z = position.z
 
         joint.orientation = Caramel_DataQuaternion()
-        joint.orientation.x = Double(orientation.vector.x)
-        joint.orientation.y = Double(orientation.vector.y)
-        joint.orientation.z = Double(orientation.vector.z)
-        joint.orientation.w = Double(orientation.vector.w)
+        joint.orientation.x = orientation.vector.x
+        joint.orientation.y = orientation.vector.y
+        joint.orientation.z = orientation.vector.z
+        joint.orientation.w = orientation.vector.w
 
         streamManager.sendData(joint)
     }
