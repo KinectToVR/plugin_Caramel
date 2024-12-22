@@ -13,10 +13,10 @@ providing Amethyst support for Caramel, using the [official handler code](https:
 
 ## **Setup**
 
-1. Download the latest `.ipa` from [repo Releases](https://github.com/KimihikoAkayasaki/plugin_Caramel/releases/latest).
+1. Download the latest `.ipa` from [repo Releases](https://github.com/KinectToVR/plugin_Caramel/releases/latest).
 2. Sideload the app using something like [Altstore](https://altstore.io)  
 <br>
-3. Start [Amethyst](https://www.microsoft.com/store/productId/9P7R8FGDDGDH) and install the [Caramel](https://github.com/KimihikoAkayasaki/plugin_Caramel) plugin from the store ('Plugins' tab)
+3. Start [Amethyst](https://www.microsoft.com/store/productId/9P7R8FGDDGDH) and install the [Caramel](https://github.com/KinectToVR/plugin_Caramel) plugin from the store ('Plugins' tab)
 4. 'Refresh' the Caramel plugin, launch the iOS app and click 'Address' for discovery  
 <br>
 5. You're ready to go! (Probably...)
