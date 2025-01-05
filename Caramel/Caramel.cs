@@ -185,8 +185,7 @@ public class Caramel : ITrackingDevice
                 },
                 Ports =
                 {
-                    new ServerPort(Addresses.FirstOrDefault()?.ToString() ?? "127.0.0.1", 8649,
-                        ServerCredentials.Insecure)
+                    new ServerPort("0.0.0.0", 8649, ServerCredentials.Insecure)
                 }
             };
 

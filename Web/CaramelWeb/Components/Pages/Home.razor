@@ -1,0 +1,411 @@
+﻿@rendermode InteractiveServer
+
+@page "/"
+@implements IDisposable
+
+@inject IJSRuntime JsRuntime
+
+@using System.ComponentModel.DataAnnotations
+@using System.Diagnostics
+@using System.Net
+@using System.Numerics
+@using Caramel
+@using Google.Protobuf.WellKnownTypes
+@using Grpc.Core
+@using Grpc.Net.Client
+@using Grpc.Net.Client.Web
+@using Icons = Microsoft.FluentUI.AspNetCore.Components.Icons
+
+<style>
+	#embeddedPage {
+	width: 100%;
+	max-width: 800px;
+	aspect-ratio: 4 / 3;
+	height: auto;
+	border-radius: calc(800px * 0.0375);
+	}
+
+	.cameraComboDiv {
+	width: 100%;
+	max-width: 350px;
+	align-self: center;
+	}
+
+	@@media (max-width: 800px) {
+	#embeddedPage {
+	max-width: 600px;
+	border-radius: calc(600px * 0.0375);
+	}
+
+	.cameraComboDiv {
+	max-width: 300px;
+	}
+	}
+
+	@@media (max-width: 600px) {
+	#embeddedPage {
+	max-width: 400px;
+	border-radius: calc(400px * 0.0375);
+	}
+
+	.cameraComboDiv {
+	max-width: 200px;
+	}
+	}
+
+	@@media (max-width: 400px) {
+	#embeddedPage {
+	max-width: 300px;
+	border-radius: calc(300px * 0.0375);
+	}
+
+	.cameraComboDiv {
+	max-width: 150px;
+	}
+	}
+
+	#embeddedPage {
+	zoom: 0.75;
+	-moz-transform: scale(0.75);
+	-moz-transform-origin: 0 0;
+	}
+
+	.fluent-wizard[position="top"] > ol[b-l81u9o5gjc],
+	.fluent-wizard-buttons {
+	display: none !important;
+	}
+</style>
+
+<br/>
+<p align="center">
+	<iframe scrolling="no" id="embeddedPage" src="/tracker.html"></iframe>
+</p>
+
+<div class="cameraComboDiv">
+	<FluentStack Orientation="Orientation.Vertical" Width="100%">
+		<FluentStack HorizontalAlignment="HorizontalAlignment.Center">
+			<FluentCombobox Width="90%" TOption="string" @bind-SelectedValue="SelectedCamera">
+				@foreach (var item in CameraItems)
+				{
+					<FluentOption OnSelect="OnCameraSelected" TOption="string" Value="@item.Id">@item.Name</FluentOption>
+				}
+			</FluentCombobox>
+
+			<FluentButton @onclick="RefreshCameraList">
+				<FluentIcon Icon="Icon" Value="new Icons.Regular.Size24.CameraSwitch()"/>
+			</FluentButton>
+		</FluentStack>
+		<br/>
+
+		<FluentLabel Style="align-self: center; margin-bottom: 10px; font-size: medium;">
+			@StatusString
+		</FluentLabel>
+
+		<FluentWizard DisplayStepNumber="WizardStepStatus.None"
+		              StepperPosition="StepperPosition.Top"
+		              Style="max-height: 150px;">
+			<Steps>
+				<FluentWizardStep>
+					<FluentEditForm Model="@ConnectionData">
+
+						<FluentStack HorizontalAlignment="HorizontalAlignment.Center"
+						             Style="margin-bottom: 10px;">
+							<FluentStack HorizontalAlignment="HorizontalAlignment.Center"
+							             VerticalAlignment="VerticalAlignment.Center">
+								<FluentLabel Style="margin-top: 2px; width: 12%;">IP:</FluentLabel>
+								<FluentTextField Disabled="DisableInput"
+								                 @bind-value="ConnectionData.IpAddress"
+								                 @bind-value:after="Callback"
+								                 Style="width: 90%;" Spellcheck="false"/>
+							</FluentStack>
+
+							<FluentButton Disabled="DisableInput">
+								<FluentIcon Icon="Icon" Value="new Icons.Regular.Size24.Search()"/>
+							</FluentButton>
+						</FluentStack>
+
+						<FluentStack HorizontalAlignment="HorizontalAlignment.Left"
+						             Style="margin-bottom: 10px;">
+							<FluentStack HorizontalAlignment="HorizontalAlignment.Center"
+							             VerticalAlignment="VerticalAlignment.Center">
+								<FluentLabel Style="margin-top: 2px; width: 10%;">Port:</FluentLabel>
+								<FluentNumberField Disabled="DisableInput"
+								                   @bind-value="ConnectionData.Port"
+								                   @bind-value:after="Callback"
+								                   Style="width: 90%;"/>
+							</FluentStack>
+						</FluentStack>
+
+						<DataAnnotationsValidator/>
+						<FluentValidationSummary/>
+					</FluentEditForm>
+				</FluentWizardStep>
+			</Steps>
+		</FluentWizard>
+	</FluentStack>
+</div>
+
+<script>
+	window.callFunctionInIframe = (functionName, ...args) => {
+	const iframe = document.getElementById('embeddedPage');
+
+	if (!iframe) {
+	console.error("Iframe not found");
+	return null;
+	}
+
+	try {
+	// Access the iframe's content window
+	const iframeWindow = iframe.contentWindow;
+
+	if (!iframeWindow) {
+	console.error("Iframe content window not found");
+	return null;
+	}
+
+	// Check if the function exists in the iframe window
+	if (typeof iframeWindow[functionName] !== 'function') {
+	console.error(`Function ${functionName} not found in iframe`);
+	return null;
+	}
+
+	// Call the function with the provided arguments and return the result
+	const result = iframeWindow[functionName](...args);
+	return result;
+	} catch (error) {
+	console.error("Error accessing iframe content:", error);
+	return null;
+	}
+	};
+
+	function listCameras() {
+	return navigator.mediaDevices.enumerateDevices()
+	.then(function (devices) {
+	return devices.filter(function (device) {
+	return device.kind === 'videoinput';
+	}).map(function (device) {
+	return {name: device.label, id: device.deviceId };
+	});
+	})
+	.catch(function (err) {
+	console.error(err);
+	return [];
+	});
+	};
+
+</script>
+
+@code {
+
+	public class CameraItem
+	{
+		public string Name { get; set; }
+		public string Id { get; set; }
+	}
+
+
+	public class ConnectionDataModel
+	{
+		[Required]
+		[RegularExpression(@"\b(?:\d{1,3}\.){3}\d{1,3}\b", ErrorMessage = "Invalid IP address format.")]
+		public string IpAddress { get; set; } = "127.0.0.1";
+
+		[Required] [Range(0, 65535)] public int Port { get; set; } = 8649;
+
+		public bool IsValid => IPAddress.TryParse(IpAddress, out _) && Port is > 0 and < 65535;
+
+		public ConnectionDataModel GetValid()
+		{
+			return IsValid ? this : new ConnectionDataModel();
+		}
+	}
+
+	private bool BlockInteractions { get; set; }
+	private bool IsConnected { get; set; }
+
+	private bool DisableInput => BlockInteractions;
+	private bool IsWorking => IsConnected && !BlockInteractions;
+
+	private DotNetObjectReference<Home> _dotNetHelper;
+	private DataHost.DataHostClient CaramelClient { get; set; }
+	private IClientStreamWriter<DataJoint> Writer { get; set; }
+	private IAsyncStreamReader<JointsResponse> Reader { get; set; }
+	private AsyncDuplexStreamingCall<DataJoint, JointsResponse> Call { get; set; }
+
+	private Exception ServiceException { get; set; }
+	private Task ReaderTask { get; set; }
+	private List<string> RequestedJoints { get; set; }
+
+	public CameraItem SelectedCamera
+	{
+		get => _selectedCamera;
+		set
+		{
+			_selectedCamera = value;
+			OnPropertyChanged();
+		}
+	}
+
+	public ConnectionDataModel ConnectionData { get; set; } = new();
+
+	public string StatusString => BlockInteractions switch
+	{
+		true => "Searching...",
+		false when IsConnected => "Connected",
+		false when !IsConnected => "Not connected",
+		_ => "Not available"
+	};
+
+	public IEnumerable<CameraItem> CameraItems =
+	[
+		new()
+	];
+
+	private CameraItem _selectedCamera;
+
+	private async Task<bool> InitializeGrpcAsync(string ip, int port)
+	{
+		var httpClient = new HttpClient(new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler()));
+		var channel = GrpcChannel.ForAddress($"http://{ip}:{port}", new GrpcChannelOptions { HttpClient = httpClient });
+
+		CaramelClient = new DataHost.DataHostClient(channel);
+
+		OnPropertyChanged();
+		BlockInteractions = true;
+
+		try
+		{
+			if (await PingDriverService(true))
+			{
+				if (Writer is not null)
+				{
+					await Writer.CompleteAsync();
+					Writer = null;
+				}
+
+				if (Reader is not null) Reader = null;
+
+				Call = CaramelClient.PublishJointData();
+				Writer = Call.RequestStream;
+				Reader = Call.ResponseStream;
+
+				ReaderTask = Task.Run(async () =>
+				{
+					await foreach (var response in Reader.ReadAllAsync())
+					{
+						RequestedJoints = response.Names.ToList();
+					}
+				});
+			}
+		}
+		catch (Exception ex)
+		{
+			ServiceException = ex;
+		}
+
+		BlockInteractions = false;
+		OnPropertyChanged();
+
+		return IsConnected;
+	}
+
+	private async Task<bool> PingDriverService(bool force = false)
+	{
+		if (!force && (CaramelClient is null || !IsWorking)) return false;
+
+		try
+		{
+			var source = new CancellationTokenSource(1000);
+			var data = await CaramelClient.PingDriverServiceAsync(
+				new Empty(), new CallOptions(cancellationToken: source.Token));
+
+			IsConnected = data?.Status is 1;
+		}
+		catch (Exception ex)
+		{
+			ServiceException = ex;
+			IsConnected = false;
+		}
+
+		OnPropertyChanged();
+		return IsConnected;
+	}
+
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		if (firstRender)
+		{
+			CameraItems = await JsRuntime.InvokeAsync<List<CameraItem>>("listCameras");
+			SelectedCamera = CameraItems.First();
+
+			_dotNetHelper = DotNetObjectReference.Create(this);
+			await JsRuntime.InvokeVoidAsync("callFunctionInIframe", "setupDotNetHelper", _dotNetHelper);
+
+			var timer = new System.Timers.Timer(TimeSpan.FromSeconds(1))
+			{
+				AutoReset = true,
+				Enabled = true
+			};
+
+			timer.Elapsed += (_, _) => GC.Collect();
+			timer.Elapsed += async (_, _) =>
+			{
+				if (!IsWorking) return;
+				await PingDriverService();
+			};
+
+			timer.Start();
+			OnPropertyChanged();
+		}
+	}
+
+	private async Task RefreshCameraList()
+	{
+		CameraItems = await JsRuntime.InvokeAsync<List<CameraItem>>("callFunctionInIframe", "listCameras");
+		SelectedCamera = CameraItems.First();
+	}
+
+	private async Task OnCameraSelected(string newId)
+	{
+		SelectedCamera = CameraItems.FirstOrDefault(x => x.Id == newId);
+		await JsRuntime.InvokeVoidAsync("callFunctionInIframe", "setCameraId", newId);
+	}
+
+	[JSInvokable]
+	public async Task OnPoseUpdated(bool isTracked, List<Keypoint> a)
+	{
+		// var v = await JsRuntime.InvokeAsync<List<Keypoint>>("callFunctionInIframe", "getPoseData");
+		// v = null;
+
+		if (!ConnectionData.IsValid || !IsConnected || BlockInteractions || Writer is null || a is null) return;
+
+
+	}
+
+	public void Dispose()
+	{
+		GC.SuppressFinalize(this);
+
+		_dotNetHelper?.Dispose();
+	}
+
+	public class Keypoint
+	{
+		public string Name { get; set; }
+		public float X { get; set; }
+		public float Y { get; set; }
+		public float Z { get; set; }
+	}
+
+	private async void Callback()
+	{
+		if (!ConnectionData.IsValid) return;
+		await InitializeGrpcAsync(ConnectionData.IpAddress, ConnectionData.Port);
+	}
+
+	private void OnPropertyChanged()
+	{
+		InvokeAsync(StateHasChanged);
+	}
+
+}
