@@ -2,48 +2,119 @@
 <html>
 
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport"
-	      content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0, initial-scale=1">
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0, initial-scale=1">
 
-	<title>Pose Estimation</title>
-	<script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
-	<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
-	<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
-	<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
-	<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
-	<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
-	<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+    <title>Pose Estimation</title>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
 
-	<script>
+    <script>
         let capture;
-        let font;
-
-        let detector;
-        let poses;
+        let modelType = 'full'; // lite|full|heavy
+        let lastCameraId = '';
 
         let dotNetHelper;
+        let poseLandmarker = undefined;
+
+        let PoseLandmarker;
+        let FilesetResolver;
+        let DrawingUtils;
+
+        let canvasCtx;
+        let drawingUtils;
+        let canvasElement;
 
         function setup() {
             console.log("setup...");
             canvas = createCanvas(windowWidth, windowHeight, WEBGL);
             canvas.parent('canvas-container');
 
+            canvasElement = document.getElementById(
+                "output_canvas"
+            );
+            canvasCtx = canvasElement.getContext("2d");
+
             setupCamera();
             background(0);
         }
 
         function setupCamera(id = "") {
-            if (id == "") {
-                capture = createCapture(VIDEO, captureLoaded);
-            } else {
-                let option = {
-                    video: { deviceId: id, },
-                    audio: true
-                };
-                capture = createCapture(option, captureLoaded);
+
+            navigator.mediaDevices.enumerateDevices()
+                .then(devices => {
+                    var videoDevices = [0, 0];
+                    var videoDeviceIndex = 0;
+                    devices.forEach(function (device) {
+                        if (device.kind === "videoinput") {
+                            videoDevices[videoDeviceIndex++] = device.deviceId;
+                            console.log(device.label + " id = " + device.deviceId);
+                        }
+                    });
+
+                    var constraints = {
+                        width: { min: 1024, ideal: 1280, max: 1920 },
+                        height: { min: 776, ideal: 720, max: 1080 },
+                        deviceId: {
+                            exact: id && videoDevices.includes(id) ? id : videoDevices[0]
+                        }
+                    };
+
+                    return navigator.mediaDevices.getUserMedia({ video: constraints });
+                })
+                .then(stream => {
+                    const track = stream.getVideoTracks()[0];
+                    const settings = track.getSettings();
+                    const deviceId = track.getSettings().deviceId;
+
+                    console.log('Device ID:', deviceId);
+                    console.log('Captured video resolution:', settings.width, settings.height);
+
+                    if (id == "") {
+                        capture = createCapture(VIDEO, captureLoaded);
+                    } else {
+                        let option = {
+                            video: { deviceId: deviceId },
+                            audio: true
+                        };
+                        capture = createCapture(option, captureLoaded);
+                    }
+
+                    lastCameraId = deviceId;
+                    capture.hide();
+
+                    updateCanvasAndSVG(settings.width, settings.height);
+                })
+                .catch(err => {
+                    console.error('Error accessing media devices:', err);
+                });
+        }
+
+        function updateCanvasAndSVG(newWidth, newHeight) {
+
+            // <div id="canvas-container" style="position: absolute; width: 100%; height: 100%; overflow: hidden;">
+            //     <div id="output_canvasd" style="position: absolute; width: 100%; height: 100%; object-fit: cover;">
+            //         <svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" style="width: 100%; height: 100%;">
+            //             <foreignObject width="100%" height="100%">
+            //                 <canvas id="output_canvas" height="1080" width="1920"></canvas>
+            //             </foreignObject>
+            //         </svg>
+            //     </div>
+            // </div>
+
+            const svgElement = document.querySelector('#output_canvasd svg');
+            const canvasElement = document.querySelector('#output_canvas');
+
+            if (svgElement) {
+                svgElement.setAttribute('viewBox', `0 0 ${newWidth} ${newHeight}`);
             }
-            capture.hide();
+
+            if (canvasElement) {
+                canvasElement.setAttribute('width', newWidth);
+                canvasElement.setAttribute('height', newHeight);
+            }
+
+            console.log(newWidth, newHeight);
         }
 
         function captureLoaded() {
@@ -52,191 +123,69 @@
         }
 
         async function initModel() {
-            const _model = poseDetection.SupportedModels.BlazePose;
-            console.log("model:", _model);
-            const detectorConfig = {
-                runtime: 'tfjs', // 'mediapipe', 'tfjs'
-                modelType: 'full' // 'lite', 'full', 'heavy'
-            };
-            detector = await poseDetection.createDetector(_model, detectorConfig);
+            const mpModule = await import("https://cdn.skypack.dev/@mediapipe/tasks-vision@0.10.0");
+            PoseLandmarker = mpModule.PoseLandmarker;
+            FilesetResolver = mpModule.FilesetResolver;
+            DrawingUtils = mpModule.DrawingUtils;
+
+            drawingUtils = new DrawingUtils(canvasCtx);
+
+            const vision = await FilesetResolver.forVisionTasks(
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+            );
+
+            poseLandmarker = await PoseLandmarker.createFromOptions(vision,
+                {
+                    baseOptions: {
+                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${modelType}/float16/1/pose_landmarker_${modelType}.task`,
+                        delegate: "GPU"
+                    },
+                    runningMode: "VIDEO",
+                    numPoses: 2
+                });
         }
 
         async function getPose() {
-            poses = await detector.estimatePoses(capture.elt);
+
+            let startTimeMs = performance.now();
+
+            if (poseLandmarker) {
+                poseLandmarker.detectForVideo(capture.elt,
+                    startTimeMs,
+                    (result) => {
+
+                        canvasCtx.save();
+                        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                        canvasCtx.drawImage(capture.elt, 0, 0, canvasElement.width, canvasElement.height);
+
+                        for (const landmark of result.landmarks) {
+                            drawingUtils.drawLandmarks(landmark, { radius: (data) => 1 });
+                            drawingUtils.drawConnectors(landmark, PoseLandmarker.POSE_CONNECTIONS);
+                        }
+
+                        canvasCtx.restore();
+
+                        if (dotNetHelper) {
+                            var hasData = result && result.worldLandmarks && result.worldLandmarks.length > 0 && result.worldLandmarks[0].length > 0;
+                            dotNetHelper.invokeMethodAsync('OnPoseUpdated', hasData, hasData ? (result.worldLandmarks[0]) : []);
+                        }
+                    });
+            } else {
+                canvasCtx.save();
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                canvasCtx.drawImage(capture.elt, 0, 0, canvasElement.width, canvasElement.height);
+                canvasCtx.restore();
+            }
         }
 
         function draw() {
-
-            let aspectRatio = 4 / 3;
-            let newWidth, newHeight;
-
-            if (windowWidth / windowHeight > aspectRatio) {
-                newHeight = windowHeight;
-                newWidth = windowHeight * aspectRatio;
-            } else {
-                newWidth = windowWidth;
-                newHeight = windowWidth / aspectRatio;
-            }
-
-            resizeCanvas(newWidth, newHeight);
-            drawBackground(newWidth, newHeight);
-
-            if (detector) {
-                getPose();
-            }
-
-            if (dotNetHelper) {
-                dotNetHelper.invokeMethodAsync('OnPoseUpdated', poses && poses.length > 0, (poses && poses.length > 0) ? (
-
-                    poses[0].keypoints.map(x => {
-                        return {
-                            name: x.name,
-                            position: {
-                                x: x.x,
-                                y: x.y,
-                                z: x.z
-                            }
-                        };
-                    })
-
-                ) : null);
-            }
-
-            drawPoseInfo(newWidth, newHeight);
-        }
-
-        function drawBackground(newWidth, newHeight) {
-            push();
-            translate(newWidth / 2.0, -newHeight / 2.0);
-
-            scale(-1, 1);
-            let captureAspectRatio = capture.width / capture.height;
-            let canvasAspectRatio = newWidth / newHeight;
-            let drawWidth, drawHeight;
-
-            if (canvasAspectRatio > captureAspectRatio) {
-                drawWidth = newWidth;
-                drawHeight = newWidth / captureAspectRatio;
-            } else {
-                drawHeight = newHeight;
-                drawWidth = newHeight * captureAspectRatio;
-            }
-
-            let offsetX = (newWidth - drawWidth) / 2;
-            let offsetY = (newHeight - drawHeight) / 2;
-
-            image(capture, offsetX, offsetY, drawWidth, drawHeight);
-            pop();
-        }
-
-        function calculateKeypointPosition(newWidth, newHeight, keypoint) {
-            let captureAspectRatio = capture.width / capture.height;
-            let canvasAspectRatio = newWidth / newHeight;
-
-            let drawWidth, drawHeight;
-
-            if (canvasAspectRatio > captureAspectRatio) {
-                drawWidth = newWidth;
-                drawHeight = newWidth / captureAspectRatio;
-            } else {
-                drawHeight = newHeight;
-                drawWidth = newHeight * captureAspectRatio;
-            }
-
-            let posX = -drawWidth / 2.0 + (drawWidth - keypoint.x * (drawWidth / capture.width));
-            let posY = -drawHeight / 2.0 + (keypoint.y * (drawHeight / capture.height));
-            return { posX, posY };
-        }
-
-        function drawPoseInfo(newWidth, newHeight) {
-            if (poses && poses.length > 0) {
-                for (var i = 0; i < poses.length; i++) {
-                    const skeleton = [
-                        [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8],
-                        [9, 10], [11, 12], [11, 13], [13, 15], [15, 17], [15, 19], [15, 21],
-                        [17, 19], [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
-                        [11, 23], [12, 24], [23, 24], [23, 25], [24, 26], [25, 27], [26, 28],
-                        [27, 29], [28, 30], [29, 31], [30, 32]
-                    ];
-
-                    for (let k = 0; k < skeleton.length; k++) {
-                        const [j1, j2] = skeleton[k];
-                        const kp1 = poses[i].keypoints[j1];
-                        const kp2 = poses[i].keypoints[j2];
-
-                        const { posX: posX1, posY: posY1 } = calculateKeypointPosition(newWidth, newHeight, kp1);
-                        const { posX: posX2, posY: posY2 } = calculateKeypointPosition(newWidth, newHeight, kp2);
-
-                        stroke(255, 255, 255, 255);
-                        strokeWeight(3);
-                        line(posX1, posY1, posX2, posY2);
-                    }
-
-                    for (var j = 0; j < poses[i].keypoints3D.length; j++) {
-                        let { posX, posY } = calculateKeypointPosition(newWidth, newHeight, poses[i].keypoints[j]);
-
-                        noStroke();
-                        fill(255, 255, 255, 255);
-                        circle(posX, posY, 10);
-
-                        let posX3D = 1.0 - (poses[i].keypoints3D[j].x + 1.0) / 2.0;
-                        let posY3D = (poses[i].keypoints3D[j].y + 1.0) / 2.0;
-                        let posZ3D = (poses[i].keypoints3D[j].z + 1.0) / 2.0;
-
-                        push();
-
-                        let tx = -newWidth / 2.0 + newHeight / 8.0;
-                        let ty = -newHeight / 2.0 + newHeight / 8.0;
-                        let tz = newHeight / 32.0;
-                        translate(tx, ty, tz);
-                        translate(-tx, -ty, -tz);
-
-                        translate(-newWidth / 2.0, -newHeight / 2.0);
-                        translate(posX3D * newHeight / 4.0, posY3D * newHeight / 4.0, posZ3D * newHeight / 16.0);
-                        normalMaterial();
-                        box(5);
-
-                        pop();
-                    }
-
-                    break; // Process only the first one
-                }
-            }
-        }
-
-        function windowResized() {
-            let aspectRatio = 4 / 3;
-            let newWidth, newHeight;
-
-            if (windowWidth / windowHeight > aspectRatio) {
-                newHeight = windowHeight;
-                newWidth = windowHeight * aspectRatio;
-            } else {
-                newWidth = windowWidth;
-                newHeight = windowWidth / aspectRatio;
-            }
-
-            resizeCanvas(newWidth, newHeight);
-        }
-
-        function keyTyped() {
-            switch (key) {
-                case 'f':
-                    let fs = fullscreen();
-                    fullscreen(!fs);
-                    break;
-                default:
-                    break;
-            }
+            getPose();
         }
 
         function setCameraId(id) {
-            if (detector) {
-                detector.dispose();
-                detector = null;
+            if (poseLandmarker) {
+                poseLandmarker = null;
             }
-
-            poses = [];
 
             if (capture) {
                 capture.remove();
@@ -245,8 +194,23 @@
             setupCamera(id);
         }
 
+        function setModelType(newModelType) {
+            if (poseLandmarker) {
+                poseLandmarker.dispose();
+                poseLandmarker = null;
+            }
+
+            if (capture) {
+                capture.remove();
+            }
+
+            modelType = newModelType;
+            setupCamera(lastCameraId);
+        }
+
         function setupDotNetHelper(helper) {
             dotNetHelper = helper;
+            return true;
         }
     </script>
 </head>
@@ -259,9 +223,17 @@
 </style>
 
 <body id="viewBody">
-<div id="canvas-container"></div>
+    <div id="canvas-container" style="position: absolute; width: 100%; height: 100%; overflow: hidden;">
+        <div id="output_canvasd" style="position: absolute; width: 100%; height: 100%; object-fit: cover;">
+            <svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" style="width: 100%; height: 100%;">
+                <foreignObject width="100%" height="100%">
+                    <canvas id="output_canvas" height="1080" width="1920"></canvas>
+                </foreignObject>
+            </svg>
+        </div>
+    </div>
 
-<script>
+    <script>
         function getText() {
             return "textInput";
         }

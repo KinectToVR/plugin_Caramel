@@ -20,7 +20,7 @@
 	#embeddedPage {
 	width: 100%;
 	max-width: 800px;
-	aspect-ratio: 4 / 3;
+	aspect-ratio: 16 / 10;
 	height: auto;
 	border-radius: calc(800px * 0.0375);
 	}
@@ -147,50 +147,51 @@
 
 <script>
 	window.callFunctionInIframe = (functionName, ...args) => {
-	const iframe = document.getElementById('embeddedPage');
+		const iframe = document.getElementById('embeddedPage');
 
-	if (!iframe) {
-	console.error("Iframe not found");
-	return null;
-	}
+		if (!iframe) {
+			console.error("Iframe not found");
+			return null;
+		}
 
-	try {
-	// Access the iframe's content window
-	const iframeWindow = iframe.contentWindow;
+		try {
+			// Access the iframe's content window
+			const iframeWindow = iframe.contentWindow;
 
-	if (!iframeWindow) {
-	console.error("Iframe content window not found");
-	return null;
-	}
+			if (!iframeWindow) {
+				console.error("Iframe content window not found");
+				return null;
+			}
 
-	// Check if the function exists in the iframe window
-	if (typeof iframeWindow[functionName] !== 'function') {
-	console.error(`Function ${functionName} not found in iframe`);
-	return null;
-	}
+			// Check if the function exists in the iframe window
+			if (typeof iframeWindow[functionName] !== 'function') {
+				console.error(`Function ${functionName} not found in iframe`);
+				console.info(`Was: ${(typeof iframeWindow[functionName])}`);
+				return null;
+			}
 
-	// Call the function with the provided arguments and return the result
-	const result = iframeWindow[functionName](...args);
-	return result;
-	} catch (error) {
-	console.error("Error accessing iframe content:", error);
-	return null;
-	}
+			// Call the function with the provided arguments and return the result
+			const result = iframeWindow[functionName](...args);
+			return result;
+		} catch (error) {
+			console.error("Error accessing iframe content:", error);
+			return null;
+		}
 	};
 
 	function listCameras() {
-	return navigator.mediaDevices.enumerateDevices()
-	.then(function (devices) {
-	return devices.filter(function (device) {
-	return device.kind === 'videoinput';
-	}).map(function (device) {
-	return {name: device.label, id: device.deviceId };
-	});
-	})
-	.catch(function (err) {
-	console.error(err);
-	return [];
-	});
+		return navigator.mediaDevices.enumerateDevices()
+			.then(function(devices) {
+				return devices.filter(function(device) {
+					return device.kind === 'videoinput';
+				}).map(function(device) {
+					return { name: device.label, id: device.deviceId };
+				});
+			})
+			.catch(function(err) {
+				console.error(err);
+				return [];
+			});
 	};
 
 </script>
@@ -235,6 +236,7 @@
 	private Exception ServiceException { get; set; }
 	private Task ReaderTask { get; set; }
 	private List<string> RequestedJoints { get; set; }
+	private bool _wasDotNetSetup = false;
 
 	public CameraItem SelectedCamera
 	{
@@ -261,6 +263,7 @@
 		new()
 	];
 
+	private System.Timers.Timer _collectorTimer;
 	private CameraItem _selectedCamera;
 
 	private async Task<bool> InitializeGrpcAsync(string ip, int port)
@@ -339,22 +342,24 @@
 			SelectedCamera = CameraItems.First();
 
 			_dotNetHelper = DotNetObjectReference.Create(this);
-			await JsRuntime.InvokeVoidAsync("callFunctionInIframe", "setupDotNetHelper", _dotNetHelper);
-
-			var timer = new System.Timers.Timer(TimeSpan.FromSeconds(1))
+			_collectorTimer = new System.Timers.Timer(TimeSpan.FromSeconds(1))
 			{
 				AutoReset = true,
 				Enabled = true
 			};
 
-			timer.Elapsed += (_, _) => GC.Collect();
-			timer.Elapsed += async (_, _) =>
+			_collectorTimer.Elapsed += (_, _) => GC.Collect();
+			_collectorTimer.Elapsed += async (_, _) =>
 			{
+				if (!_wasDotNetSetup)
+					await InvokeAsync(async () => _wasDotNetSetup = await JsRuntime
+						.InvokeAsync<bool?>("callFunctionInIframe", "setupDotNetHelper", _dotNetHelper) ?? false);
+
 				if (!IsWorking) return;
 				await PingDriverService();
 			};
 
-			timer.Start();
+			_collectorTimer.Start();
 			OnPropertyChanged();
 		}
 	}
@@ -374,12 +379,9 @@
 	[JSInvokable]
 	public async Task OnPoseUpdated(bool isTracked, List<Keypoint> a)
 	{
-		// var v = await JsRuntime.InvokeAsync<List<Keypoint>>("callFunctionInIframe", "getPoseData");
-		// v = null;
-
 		if (!ConnectionData.IsValid || !IsConnected || BlockInteractions || Writer is null || a is null) return;
 
-
+		// TODO send data via grpc, https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker#pose_landmarker_model
 	}
 
 	public void Dispose()
@@ -391,7 +393,6 @@
 
 	public class Keypoint
 	{
-		public string Name { get; set; }
 		public float X { get; set; }
 		public float Y { get; set; }
 		public float Z { get; set; }
