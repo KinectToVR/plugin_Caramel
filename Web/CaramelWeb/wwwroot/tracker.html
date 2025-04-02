@@ -2,217 +2,228 @@
 <html>
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0, initial-scale=1">
+	<meta charset="UTF-8">
+	<meta name="viewport"
+	      content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0, initial-scale=1">
 
-    <title>Pose Estimation</title>
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
+	<title>Pose Estimation</title>
+	<script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
 
-    <script>
-        let capture;
-        let modelType = 'full'; // lite|full|heavy
-        let lastCameraId = '';
+	<script>
+		let capture;
+		let modelType = 'full'; // lite|full|heavy
+		let lastCameraId = '';
 
-        let dotNetHelper;
-        let poseLandmarker = undefined;
+		let dotNetHelper;
+		let poseLandmarker = undefined;
 
-        let PoseLandmarker;
-        let FilesetResolver;
-        let DrawingUtils;
+		let PoseLandmarker;
+		let FilesetResolver;
+		let DrawingUtils;
 
-        let canvasCtx;
-        let drawingUtils;
-        let canvasElement;
+		let canvasCtx;
+		let drawingUtils;
+		let canvasElement;
 
-        function setup() {
-            console.log("setup...");
-            canvas = createCanvas(windowWidth, windowHeight, WEBGL);
-            canvas.parent('canvas-container');
+		function setup() {
+			console.log("setup...");
+			canvas = createCanvas(windowWidth, windowHeight, WEBGL);
+			canvas.parent('canvas-container');
 
-            canvasElement = document.getElementById(
-                "output_canvas"
-            );
-            canvasCtx = canvasElement.getContext("2d");
+			canvasElement = document.getElementById(
+				"output_canvas"
+			);
+			canvasCtx = canvasElement.getContext("2d");
 
-            setupCamera();
-            background(0);
-        }
+			setupCamera(lastCameraId);
+			background(0);
+		}
 
-        function setupCamera(id = "") {
+		function setupCamera(id = "") {
 
-            navigator.mediaDevices.enumerateDevices()
-                .then(devices => {
-                    var videoDevices = [0, 0];
-                    var videoDeviceIndex = 0;
-                    devices.forEach(function (device) {
-                        if (device.kind === "videoinput") {
-                            videoDevices[videoDeviceIndex++] = device.deviceId;
-                            console.log(device.label + " id = " + device.deviceId);
-                        }
-                    });
+			navigator.mediaDevices.enumerateDevices()
+				.then(devices => {
+					var videoDevices = [0, 0];
+					var videoDeviceIndex = 0;
+					devices.forEach(function(device) {
+						if (device.kind === "videoinput") {
+							videoDevices[videoDeviceIndex++] = device.deviceId;
+							console.log(device.label + " id = " + device.deviceId);
+						}
+					});
 
-                    var constraints = {
-                        width: { min: 1024, ideal: 1280, max: 1920 },
-                        height: { min: 776, ideal: 720, max: 1080 },
-                        deviceId: {
-                            exact: id && videoDevices.includes(id) ? id : videoDevices[0]
-                        }
-                    };
+					var constraints = {
+						width: { min: 1024, ideal: 1280, max: 1920 },
+						height: { min: 776, ideal: 720, max: 1080 },
+						deviceId: {
+							exact: id && videoDevices.includes(id) ? id : videoDevices[0]
+						}
+					};
 
-                    return navigator.mediaDevices.getUserMedia({ video: constraints });
-                })
-                .then(stream => {
-                    const track = stream.getVideoTracks()[0];
-                    const settings = track.getSettings();
-                    const deviceId = track.getSettings().deviceId;
+					return navigator.mediaDevices.getUserMedia({ video: constraints });
+				})
+				.then(stream => {
+					const track = stream.getVideoTracks()[0];
+					const settings = track.getSettings();
+					const deviceId = track.getSettings().deviceId;
 
-                    console.log('Device ID:', deviceId);
-                    console.log('Captured video resolution:', settings.width, settings.height);
+					console.log('Device ID:', deviceId);
+					console.log('Captured video resolution:', settings.width, settings.height);
 
-                    if (id == "") {
-                        capture = createCapture(VIDEO, captureLoaded);
-                    } else {
-                        let option = {
-                            video: { deviceId: deviceId },
-                            audio: true
-                        };
-                        capture = createCapture(option, captureLoaded);
-                    }
+					if (id == "") {
+						capture = createCapture(VIDEO, captureLoaded);
+					} else {
+						let option = {
+							video: { deviceId: deviceId },
+							audio: true
+						};
+						capture = createCapture(option, captureLoaded);
+					}
 
-                    lastCameraId = deviceId;
-                    capture.hide();
+					lastCameraId = deviceId;
+					capture.hide();
 
-                    updateCanvasAndSVG(settings.width, settings.height);
-                })
-                .catch(err => {
-                    console.error('Error accessing media devices:', err);
-                });
-        }
+					updateCanvasAndSVG(settings.width, settings.height);
+				})
+				.catch(err => {
+					console.error('Error accessing media devices:', err);
+				});
+		}
 
-        function updateCanvasAndSVG(newWidth, newHeight) {
+		function updateCanvasAndSVG(newWidth, newHeight) {
 
-            // <div id="canvas-container" style="position: absolute; width: 100%; height: 100%; overflow: hidden;">
-            //     <div id="output_canvasd" style="position: absolute; width: 100%; height: 100%; object-fit: cover;">
-            //         <svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" style="width: 100%; height: 100%;">
-            //             <foreignObject width="100%" height="100%">
-            //                 <canvas id="output_canvas" height="1080" width="1920"></canvas>
-            //             </foreignObject>
-            //         </svg>
-            //     </div>
-            // </div>
+			// <div id="canvas-container" style="position: absolute; width: 100%; height: 100%; overflow: hidden;">
+			//     <div id="output_canvasd" style="position: absolute; width: 100%; height: 100%; object-fit: cover;">
+			//         <svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" style="width: 100%; height: 100%;">
+			//             <foreignObject width="100%" height="100%">
+			//                 <canvas id="output_canvas" height="1080" width="1920"></canvas>
+			//             </foreignObject>
+			//         </svg>
+			//     </div>
+			// </div>
 
-            const svgElement = document.querySelector('#output_canvasd svg');
-            const canvasElement = document.querySelector('#output_canvas');
+			const svgElement = document.querySelector('#output_canvasd svg');
+			const canvasElement = document.querySelector('#output_canvas');
 
-            if (svgElement) {
-                svgElement.setAttribute('viewBox', `0 0 ${newWidth} ${newHeight}`);
-            }
+			if (svgElement) {
+				svgElement.setAttribute('viewBox', `0 0 ${newWidth} ${newHeight}`);
+			}
 
-            if (canvasElement) {
-                canvasElement.setAttribute('width', newWidth);
-                canvasElement.setAttribute('height', newHeight);
-            }
+			if (canvasElement) {
+				canvasElement.setAttribute('width', newWidth);
+				canvasElement.setAttribute('height', newHeight);
+			}
 
-            console.log(newWidth, newHeight);
-        }
+			console.log(newWidth, newHeight);
+		}
 
-        function captureLoaded() {
-            console.log("capture loaded...");
-            initModel();
-        }
+		function captureLoaded() {
+			console.log("capture loaded...");
+			initModel();
+		}
 
-        async function initModel() {
-            const mpModule = await import("https://cdn.skypack.dev/@mediapipe/tasks-vision@0.10.0");
-            PoseLandmarker = mpModule.PoseLandmarker;
-            FilesetResolver = mpModule.FilesetResolver;
-            DrawingUtils = mpModule.DrawingUtils;
+		async function initModel() {
+			const mpModule = await import("https://cdn.skypack.dev/@mediapipe/tasks-vision@0.10.0");
+			PoseLandmarker = mpModule.PoseLandmarker;
+			FilesetResolver = mpModule.FilesetResolver;
+			DrawingUtils = mpModule.DrawingUtils;
 
-            drawingUtils = new DrawingUtils(canvasCtx);
+			drawingUtils = new DrawingUtils(canvasCtx);
 
-            const vision = await FilesetResolver.forVisionTasks(
-                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
-            );
+			const vision = await FilesetResolver.forVisionTasks(
+				"https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+			);
 
-            poseLandmarker = await PoseLandmarker.createFromOptions(vision,
-                {
-                    baseOptions: {
-                        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${modelType}/float16/1/pose_landmarker_${modelType}.task`,
-                        delegate: "GPU"
-                    },
-                    runningMode: "VIDEO",
-                    numPoses: 2
-                });
-        }
+			console.log("Loading pose landmarker for model type:", modelType);
+			poseLandmarker = await PoseLandmarker.createFromOptions(vision,
+				{
+					baseOptions: {
+						modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${modelType}/float16/1/pose_landmarker_${modelType}.task`,
+						delegate: "GPU"
+					},
+					runningMode: "VIDEO",
+					numPoses: 2
+				});
+		}
 
-        async function getPose() {
+		async function getPose() {
 
-            let startTimeMs = performance.now();
+			let startTimeMs = performance.now();
 
-            if (poseLandmarker) {
-                poseLandmarker.detectForVideo(capture.elt,
-                    startTimeMs,
-                    (result) => {
+			if (poseLandmarker && capture) {
+				poseLandmarker.detectForVideo(capture.elt,
+					startTimeMs,
+					(result) => {
 
-                        canvasCtx.save();
-                        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-                        canvasCtx.drawImage(capture.elt, 0, 0, canvasElement.width, canvasElement.height);
+						canvasCtx.save();
+						canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+						canvasCtx.drawImage(capture.elt, 0, 0, canvasElement.width, canvasElement.height);
 
-                        for (const landmark of result.landmarks) {
-                            drawingUtils.drawLandmarks(landmark, { radius: (data) => 1 });
-                            drawingUtils.drawConnectors(landmark, PoseLandmarker.POSE_CONNECTIONS);
-                        }
+						for (const landmark of result.landmarks) {
+							drawingUtils.drawLandmarks(landmark, { radius: (data) => 1 });
+							drawingUtils.drawConnectors(landmark, PoseLandmarker.POSE_CONNECTIONS);
+						}
 
-                        canvasCtx.restore();
+						canvasCtx.restore();
 
-                        if (dotNetHelper) {
-                            var hasData = result && result.worldLandmarks && result.worldLandmarks.length > 0 && result.worldLandmarks[0].length > 0;
-                            dotNetHelper.invokeMethodAsync('OnPoseUpdated', hasData, hasData ? (result.worldLandmarks[0]) : []);
-                        }
-                    });
-            } else {
-                canvasCtx.save();
-                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-                canvasCtx.drawImage(capture.elt, 0, 0, canvasElement.width, canvasElement.height);
-                canvasCtx.restore();
-            }
-        }
+						if (dotNetHelper) {
+							var hasData = result && result.worldLandmarks && result.worldLandmarks.length > 0 && result.worldLandmarks[0].length > 0;
+							await dotNetHelper.invokeMethodAsync('OnPoseUpdated', hasData, hasData ? (result.worldLandmarks[0]) : []);
+						}
+					});
+			} else if (capture) {
+				canvasCtx.save();
+				canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+				canvasCtx.drawImage(capture.elt, 0, 0, canvasElement.width, canvasElement.height);
+				canvasCtx.restore();
+			}
+		}
 
-        function draw() {
-            getPose();
-        }
+		function draw() {
+			getPose();
+		}
 
-        function setCameraId(id) {
-            if (poseLandmarker) {
-                poseLandmarker = null;
-            }
+		function setCameraId(id) {
+			if (poseLandmarker) {
+				poseLandmarker = null;
+			}
 
-            if (capture) {
-                capture.remove();
-            }
+			if (capture) {
+				capture.remove();
+			}
 
-            setupCamera(id);
-        }
+			if (canvasCtx) {
+				setupCamera(id);
+			} else {
+				lastCameraId = id;
+			}
+		}
 
-        function setModelType(newModelType) {
-            if (poseLandmarker) {
-                poseLandmarker.dispose();
-                poseLandmarker = null;
-            }
+		function setModelType(newModelType) {
+			if (newModelType !== 'lite' &&
+				newModelType !== 'full' &&
+				newModelType !== 'heavy') return;
 
-            if (capture) {
-                capture.remove();
-            }
+			if (poseLandmarker) {
+				poseLandmarker = null;
+			}
 
-            modelType = newModelType;
-            setupCamera(lastCameraId);
-        }
+			if (capture) {
+				capture.remove();
+			}
 
-        function setupDotNetHelper(helper) {
-            dotNetHelper = helper;
-            return true;
-        }
-    </script>
+			modelType = newModelType;
+
+			if (canvasCtx) {
+				setupCamera(lastCameraId);
+			}
+		}
+
+		function setupDotNetHelper(helper) {
+			dotNetHelper = helper;
+			return true;
+		}
+	</script>
 </head>
 
 <style>
@@ -223,21 +234,21 @@
 </style>
 
 <body id="viewBody">
-    <div id="canvas-container" style="position: absolute; width: 100%; height: 100%; overflow: hidden;">
-        <div id="output_canvasd" style="position: absolute; width: 100%; height: 100%; object-fit: cover;">
-            <svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" style="width: 100%; height: 100%;">
-                <foreignObject width="100%" height="100%">
-                    <canvas id="output_canvas" height="1080" width="1920"></canvas>
-                </foreignObject>
-            </svg>
-        </div>
-    </div>
+<div id="canvas-container" style="position: absolute; width: 100%; height: 100%; overflow: hidden;">
+	<div id="output_canvasd" style="position: absolute; width: 100%; height: 100%; object-fit: cover;">
+		<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice" style="width: 100%; height: 100%;">
+			<foreignObject width="100%" height="100%">
+				<canvas id="output_canvas" height="1080" width="1920"></canvas>
+			</foreignObject>
+		</svg>
+	</div>
+</div>
 
-    <script>
-        function getText() {
-            return "textInput";
-        }
-    </script>
+<script>
+	function getText() {
+		return "textInput";
+	}
+</script>
 </body>
 
 </html>

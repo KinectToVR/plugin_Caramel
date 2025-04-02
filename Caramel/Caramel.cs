@@ -387,7 +387,7 @@ public class CaramelService(Caramel parent) : DataHost.DataHostBase
     {
         try
         {
-            Host?.Host?.Log("Client pinged the service!");
+            // Host?.Host?.Log("Client pinged the service!");
             RefreshCounter = RefreshCounter < 0 ? 100 : RefreshCounter + 1;
             var statusBackup = Host!.DeviceStatus;
             Host!.DeviceStatus = (int)Caramel.HandlerStatus.ServiceSuccess;

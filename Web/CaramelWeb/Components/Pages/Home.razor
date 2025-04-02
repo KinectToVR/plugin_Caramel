@@ -4,6 +4,7 @@
 @implements IDisposable
 
 @inject IJSRuntime JsRuntime
+@inject ProtectedLocalStorage LocalStorage
 
 @using System.ComponentModel.DataAnnotations
 @using System.Diagnostics
@@ -14,6 +15,7 @@
 @using Grpc.Core
 @using Grpc.Net.Client
 @using Grpc.Net.Client.Web
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
 @using Icons = Microsoft.FluentUI.AspNetCore.Components.Icons
 
 <style>
@@ -84,17 +86,19 @@
 <div class="cameraComboDiv">
 	<FluentStack Orientation="Orientation.Vertical" Width="100%">
 		<FluentStack HorizontalAlignment="HorizontalAlignment.Center">
-			<FluentCombobox Width="90%" TOption="string" @bind-SelectedValue="SelectedCamera">
-				@foreach (var item in CameraItems)
-				{
-					<FluentOption OnSelect="OnCameraSelected" TOption="string" Value="@item.Id">@item.Name</FluentOption>
-				}
-			</FluentCombobox>
+			<FluentCombobox Width="88%" Items="@CameraItems" TOption="Option<CameraItem>"
+			OptionText="@(i => i.Value?.Name ?? "Unknown")" OptionValue="@(i => i.Value?.Id)"
+			@bind-SelectedOption="@SelectedCamera" @bind-Value="@CameraIdValue"/>
 
 			<FluentButton @onclick="RefreshCameraList">
 				<FluentIcon Icon="Icon" Value="new Icons.Regular.Size24.CameraSwitch()"/>
 			</FluentButton>
 		</FluentStack>
+
+		<FluentCombobox Width="100%" Items="@ModelItems" TOption="Option<string>"
+		OptionText="@(i => $"MediaPipe {(i.Value ?? "Unavailable").Capitalize()} (GPU)")"
+		OptionValue="@(i => i.Value)"
+		@bind-SelectedOption="@SelectedModelType" @bind-Value="@ModelTypeValue"/>
 		<br/>
 
 		<FluentLabel Style="align-self: center; margin-bottom: 10px; font-size: medium;">
@@ -102,37 +106,37 @@
 		</FluentLabel>
 
 		<FluentWizard DisplayStepNumber="WizardStepStatus.None"
-		              StepperPosition="StepperPosition.Top"
-		              Style="max-height: 150px;">
+		StepperPosition="StepperPosition.Top"
+		Style="max-height: 150px;">
 			<Steps>
 				<FluentWizardStep>
 					<FluentEditForm Model="@ConnectionData">
 
 						<FluentStack HorizontalAlignment="HorizontalAlignment.Center"
-						             Style="margin-bottom: 10px;">
+						Style="margin-bottom: 10px;">
 							<FluentStack HorizontalAlignment="HorizontalAlignment.Center"
-							             VerticalAlignment="VerticalAlignment.Center">
+							VerticalAlignment="VerticalAlignment.Center">
 								<FluentLabel Style="margin-top: 2px; width: 12%;">IP:</FluentLabel>
 								<FluentTextField Disabled="DisableInput"
-								                 @bind-value="ConnectionData.IpAddress"
-								                 @bind-value:after="Callback"
-								                 Style="width: 90%;" Spellcheck="false"/>
+								@bind-value="ConnectionData.IpAddress"
+								@onkeydown="@KeyCallback"
+								Style="width: 90%;" Spellcheck="false"/>
 							</FluentStack>
 
-							<FluentButton Disabled="DisableInput">
+							<FluentButton Disabled="DisableInput" OnClick="DiscoveryCallback">
 								<FluentIcon Icon="Icon" Value="new Icons.Regular.Size24.Search()"/>
 							</FluentButton>
 						</FluentStack>
 
 						<FluentStack HorizontalAlignment="HorizontalAlignment.Left"
-						             Style="margin-bottom: 10px;">
+						Style="margin-bottom: 10px;">
 							<FluentStack HorizontalAlignment="HorizontalAlignment.Center"
-							             VerticalAlignment="VerticalAlignment.Center">
+							VerticalAlignment="VerticalAlignment.Center">
 								<FluentLabel Style="margin-top: 2px; width: 10%;">Port:</FluentLabel>
 								<FluentNumberField Disabled="DisableInput"
-								                   @bind-value="ConnectionData.Port"
-								                   @bind-value:after="Callback"
-								                   Style="width: 90%;"/>
+								@bind-value="ConnectionData.Port"
+								@onkeydown="@KeyCallback"
+								Style="width: 90%;"/>
 							</FluentStack>
 						</FluentStack>
 
@@ -147,51 +151,51 @@
 
 <script>
 	window.callFunctionInIframe = (functionName, ...args) => {
-		const iframe = document.getElementById('embeddedPage');
+	const iframe = document.getElementById('embeddedPage');
 
-		if (!iframe) {
-			console.error("Iframe not found");
-			return null;
-		}
+	if (!iframe) {
+	console.error("Iframe not found");
+	return null;
+	}
 
-		try {
-			// Access the iframe's content window
-			const iframeWindow = iframe.contentWindow;
+	try {
+	// Access the iframe's content window
+	const iframeWindow = iframe.contentWindow;
 
-			if (!iframeWindow) {
-				console.error("Iframe content window not found");
-				return null;
-			}
+	if (!iframeWindow) {
+	console.error("Iframe content window not found");
+	return null;
+	}
 
-			// Check if the function exists in the iframe window
-			if (typeof iframeWindow[functionName] !== 'function') {
-				console.error(`Function ${functionName} not found in iframe`);
-				console.info(`Was: ${(typeof iframeWindow[functionName])}`);
-				return null;
-			}
+	// Check if the function exists in the iframe window
+	if (typeof iframeWindow[functionName] !== 'function') {
+	console.error(`Function ${functionName} not found in iframe`);
+	console.info(`Was: ${(typeof iframeWindow[functionName])}`);
+	return null;
+	}
 
-			// Call the function with the provided arguments and return the result
-			const result = iframeWindow[functionName](...args);
-			return result;
-		} catch (error) {
-			console.error("Error accessing iframe content:", error);
-			return null;
-		}
+	// Call the function with the provided arguments and return the result
+	const result = iframeWindow[functionName](...args);
+	return result;
+	} catch (error) {
+	console.error("Error accessing iframe content:", error);
+	return null;
+	}
 	};
 
 	function listCameras() {
-		return navigator.mediaDevices.enumerateDevices()
-			.then(function(devices) {
-				return devices.filter(function(device) {
-					return device.kind === 'videoinput';
-				}).map(function(device) {
-					return { name: device.label, id: device.deviceId };
-				});
-			})
-			.catch(function(err) {
-				console.error(err);
-				return [];
-			});
+	return navigator.mediaDevices.enumerateDevices()
+	.then(function(devices) {
+	return devices.filter(function(device) {
+	return device.kind === 'videoinput';
+	}).map(function(device) {
+	return { name: device.label, id: device.deviceId };
+	});
+	})
+	.catch(function(err) {
+	console.error(err);
+	return [];
+	});
 	};
 
 </script>
@@ -238,13 +242,51 @@
 	private List<string> RequestedJoints { get; set; }
 	private bool _wasDotNetSetup = false;
 
-	public CameraItem SelectedCamera
+	public string CameraIdValue { get; set; }
+
+	public Option<CameraItem> SelectedCamera
 	{
 		get => _selectedCamera;
 		set
 		{
 			_selectedCamera = value;
-			OnPropertyChanged();
+
+			InvokeAsync(async () =>
+			{
+				try
+				{
+					await JsRuntime.InvokeVoidAsync("callFunctionInIframe", "setCameraId", value?.Value?.Id ?? "");
+					await LocalStorage.SetAsync("lastCameraId", value?.Value?.Id ?? "");
+				}
+				catch (Exception)
+				{
+					// ignored
+				}
+			});
+		}
+	}
+
+	public string ModelTypeValue { get; set; }
+
+	public Option<string> SelectedModelType
+	{
+		get => _selectedModelType;
+		set
+		{
+			_selectedModelType = value;
+
+			InvokeAsync(async () =>
+			{
+				try
+				{
+					await JsRuntime.InvokeVoidAsync("callFunctionInIframe", "setModelType", value?.Value ?? "");
+					await LocalStorage.SetAsync("lastModelType", value?.Value ?? "");
+				}
+				catch (Exception)
+				{
+					// ignored
+				}
+			});
 		}
 	}
 
@@ -258,13 +300,21 @@
 		_ => "Not available"
 	};
 
-	public IEnumerable<CameraItem> CameraItems =
+	public List<Option<CameraItem>> CameraItems =
 	[
 		new()
 	];
 
+	public List<Option<string>> ModelItems =
+	[
+		new() { Value = "full" },
+		new() { Value = "lite" },
+		new() { Value = "heavy" }
+	];
+
 	private System.Timers.Timer _collectorTimer;
-	private CameraItem _selectedCamera;
+	private Option<CameraItem> _selectedCamera;
+	private Option<string> _selectedModelType;
 
 	private async Task<bool> InitializeGrpcAsync(string ip, int port)
 	{
@@ -338,9 +388,28 @@
 	{
 		if (firstRender)
 		{
-			CameraItems = await JsRuntime.InvokeAsync<List<CameraItem>>("listCameras");
-			SelectedCamera = CameraItems.First();
+			CameraItems = (await JsRuntime.InvokeAsync<List<CameraItem>>("listCameras"))
+				.Select(x => new Option<CameraItem> { Value = x }).ToList();
 
+			// Camera persistence
+			var lastCameraId = (await LocalStorage.GetAsync<string>("lastCameraId")).Value;
+			SelectedCamera = CameraItems.FirstOrDefault(x =>
+					!string.IsNullOrEmpty(x.Value?.Id) && x.Value?.Id == lastCameraId,
+				CameraItems.FirstOrDefault());
+
+			await JsRuntime.InvokeVoidAsync("callFunctionInIframe",
+				"setCameraId", SelectedCamera?.Value?.Id ?? "");
+
+			// Model type persistence
+			var lastModelType = (await LocalStorage.GetAsync<string>("lastModelType")).Value;
+			SelectedModelType = ModelItems.FirstOrDefault(x =>
+					!string.IsNullOrEmpty(x.Value) && x.Value == lastModelType,
+				ModelItems.FirstOrDefault());
+
+			await JsRuntime.InvokeVoidAsync("callFunctionInIframe",
+				"setModelType", SelectedModelType.Value ?? "");
+
+			// Very helpful stuff :thumbsup:
 			_dotNetHelper = DotNetObjectReference.Create(this);
 			_collectorTimer = new System.Timers.Timer(TimeSpan.FromSeconds(1))
 			{
@@ -366,23 +435,97 @@
 
 	private async Task RefreshCameraList()
 	{
-		CameraItems = await JsRuntime.InvokeAsync<List<CameraItem>>("callFunctionInIframe", "listCameras");
-		SelectedCamera = CameraItems.First();
-	}
+		CameraItems = (await JsRuntime.InvokeAsync<List<CameraItem>>("listCameras"))
+			.Select(x => new Option<CameraItem> { Value = x }).ToList();
 
-	private async Task OnCameraSelected(string newId)
-	{
-		SelectedCamera = CameraItems.FirstOrDefault(x => x.Id == newId);
-		await JsRuntime.InvokeVoidAsync("callFunctionInIframe", "setCameraId", newId);
+		SelectedCamera = CameraItems.FirstOrDefault(x =>
+			x.Value?.Id == SelectedCamera?.Value?.Id, CameraItems.FirstOrDefault());
 	}
 
 	[JSInvokable]
-	public async Task OnPoseUpdated(bool isTracked, List<Keypoint> a)
+	public async Task OnPoseUpdated(bool isTracked, List<Keypoint> keypoints)
 	{
-		if (!ConnectionData.IsValid || !IsConnected || BlockInteractions || Writer is null || a is null) return;
+		if (_isSenderWorking) return;
 
-		// TODO send data via grpc, https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker#pose_landmarker_model
+		if (!ConnectionData.IsValid || !IsConnected || BlockInteractions ||
+			Writer is null || keypoints is null || keypoints.Count != 33) return;
+
+		// https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker#pose_landmarker_model
+
+		_isSenderWorking = true;
+
+		try
+		{
+			var joints = keypoints
+				// Prepare the base joint list based on the supported ones
+				.Select((x, i) => JointDictionary.TryGetValue(i, out var name)
+					? new DataJoint { IsTracked = true, Name = name, Position = x.Data() }
+					: null)
+				.Where(x => x is not null)
+				// Append additional, interpolated joints
+				.Append(new DataJoint
+				{
+					IsTracked = true,
+					Name = "neck_1_joint",
+					Position = keypoints[11].Average(keypoints[12])
+				})
+				.Append(new DataJoint
+				{
+					IsTracked = true,
+					Name = "spine_7_joint",
+					Position = keypoints[11].Average(keypoints[12])
+				})
+				.Append(new DataJoint
+				{
+					IsTracked = true,
+					Name = "hips_joint",
+					Position = keypoints[23].Average(keypoints[24])
+				})
+				.Append(new DataJoint
+				{
+					IsTracked = true,
+					Name = "spine_4_joint",
+					Position = keypoints[11].Average(keypoints[12], keypoints[23], keypoints[24])
+				}).ToList();
+
+			// Compute orientations for the joint list
+			// Inverse: 0 or 7 or 8 or 9 or 10 or 17 or 18
+			for (var index = 0; index < joints.Count; index++)
+			{
+				var mapped = joints[SkeletonRotationsMap[index]];
+				var raw = joints[index];
+
+				if (index == 21) // 24
+					mapped = new DataJoint
+					{
+						IsTracked = true,
+						Name = JointDictionary[index],
+						Position = keypoints[24].Data()
+					};
+
+				var orientation = Extensions.FromTwoVectors(Vector3.UnitZ,
+					mapped.Position.Vec() - raw.Position.Vec());
+
+				if (index is 0 or 7 or 8 or 9 or 10 or 17 or 18)
+					orientation = Quaternion.Inverse(orientation);
+
+				joints[index].Orientation = orientation.Ame();
+			}
+
+			if (Writer is null) return;
+
+			foreach (var joint in joints)
+				await Writer.WriteAsync(joint);
+		}
+		catch (Exception ex)
+		{
+			Debug.WriteLine(ex);
+		}
+
+		_isSenderWorking = false;
 	}
+
+	private bool _isSenderWorking = false;
 
 	public void Dispose()
 	{
@@ -396,17 +539,154 @@
 		public float X { get; set; }
 		public float Y { get; set; }
 		public float Z { get; set; }
+
+		public DataVector Data()
+		{
+			return new DataVector { X = X, Y = -Y - 0.3f, Z = Z + 2.0f };
+		}
+
+		public DataVector Average(params Keypoint[] others)
+		{
+			return (others.Append(this).Aggregate(new Keypoint(), (s, v) => s + v) / (others.Length + 1)).Data();
+		}
+
+		public static Keypoint operator +(Keypoint k1, Keypoint k2)
+		{
+			return new Keypoint
+			{
+				X = k1.X + k2.X,
+				Y = k1.Y + k2.Y,
+				Z = k1.Z + k2.Z
+			};
+		}
+
+		public static Keypoint operator /(Keypoint k, float scalar)
+		{
+			if (scalar == 0)
+			{
+				throw new DivideByZeroException("Scalar cannot be zero.");
+			}
+
+			return new Keypoint
+			{
+				X = k.X / scalar,
+				Y = k.Y / scalar,
+				Z = k.Z / scalar
+			};
+		}
 	}
 
-	private async void Callback()
+	private async void KeyCallback(KeyboardEventArgs e)
 	{
-		if (!ConnectionData.IsValid) return;
+		if (!ConnectionData.IsValid || e.Code is not "Enter") return;
 		await InitializeGrpcAsync(ConnectionData.IpAddress, ConnectionData.Port);
+	}
+
+	private void DiscoveryCallback()
+	{
+		throw new NotImplementedException();
 	}
 
 	private void OnPropertyChanged()
 	{
 		InvokeAsync(StateHasChanged);
 	}
+
+	public static Dictionary<int, string> JointDictionary = new()
+	{
+		{ 0, "head_joint" }, // nose
+		// { 1, "" }, // left eye (inner)
+		// { 2, "" }, // left eye
+		// { 3, "" }, // left eye (outer)
+		// { 4, "" }, // right eye (inner)
+		// { 5, "" }, // right eye
+		// { 6, "" }, // right eye (outer)
+		// { 7, "" }, // left ear
+		// { 8, "" }, // right ear
+		// { 9, "" }, // mouth (left)
+		// { 10, "" }, // mouth (right)
+		{ 11, "left_shoulder_1_joint" }, // left shoulder
+		{ 12, "right_shoulder_1_joint" }, // right shoulder
+		{ 13, "left_forearm_joint" }, // left elbow
+		{ 14, "right_forearm_joint" }, // right elbow
+		{ 15, "left_hand_joint" }, // left wrist
+		{ 16, "right_hand_joint" }, // right wrist
+		// { 17, "" }, // left pinky
+		// { 18, "" }, // right pinky
+		{ 19, "left_handMid_3_joint" }, // left index
+		{ 20, "right_handMid_3_joint" }, // right index
+		{ 21, "left_handThumb_2_joint" }, // left thumb
+		{ 22, "right_handThumb_2_joint" }, // right thumb
+		{ 23, "left_upLeg_joint" }, // left hip
+		{ 24, "right_upLeg_joint" }, // right hip
+		{ 25, "left_leg_joint" }, // left knee
+		{ 26, "right_leg_joint" }, // right knee
+		{ 27, "left_foot_joint" }, // left ankle
+		{ 28, "right_foot_joint" }, // right ankle
+		// { 29, "" }, // left heel
+		// { 30, "" }, // right heel
+		{ 31, "left_toes_joint" }, // left foot index
+		{ 32, "right_toes_joint" } // right foot index
+	};
+
+	// neck_1_joint = spine_7_joint -> avg 11,12
+	// spine_4_joint -> avg 11,12,23,24
+	// hips_joint -> avg 23,24
+
+	/*
+
+	   { 0, "head_joint" }, // nose
+	   { 1, "left_shoulder_1_joint" }, // left shoulder
+	   { 2, "right_shoulder_1_joint" }, // right shoulder
+	   { 3, "left_forearm_joint" }, // left elbow
+	   { 4, "right_forearm_joint" }, // right elbow
+	   { 5, "left_hand_joint" }, // left wrist
+	   { 6, "right_hand_joint" }, // right wrist
+	   { 7, "left_handMid_3_joint" }, // left index
+	   { 8, "right_handMid_3_joint" }, // right index
+	   { 9, "left_handThumb_2_joint" }, // left thumb
+	   { 10, "right_handThumb_2_joint" }, // right thumb
+	   { 11, "left_upLeg_joint" }, // left hip
+	   { 12, "right_upLeg_joint" }, // right hip
+	   { 13, "left_leg_joint" }, // left knee
+	   { 14, "right_leg_joint" }, // right knee
+	   { 15, "left_foot_joint" }, // left ankle
+	   { 16, "right_foot_joint" }, // right ankle
+	   { 17, "left_toes_joint" }, // left foot index
+	   { 18, "right_toes_joint" }, // right foot index
+	   { 19, "neck_1_joint" },
+	   { 20, "spine_7_joint" },
+	   { 21, "hips_joint" },
+	   { 22, "spine_4_joint" },
+
+	 */
+
+	// For joint {Key}, rotation vector {Key}->{Value}
+	public static Dictionary<int, int> SkeletonRotationsMap = new()
+	{
+		{ 0, 19 }, // .Inverse
+		{ 1, 19 },
+		{ 2, 19 },
+		{ 3, 5 },
+		{ 4, 6 },
+		{ 5, 7 },
+		{ 6, 8 },
+		{ 7, 5 }, // .Inverse
+		{ 8, 6 }, // .Inverse
+		{ 9, 5 }, // .Inverse
+		{ 10, 6 }, // .Inverse
+		{ 11, 13 },
+		{ 12, 14 },
+		{ 13, 15 },
+		{ 14, 16 },
+		{ 15, 17 },
+		{ 16, 18 },
+		{ 17, 15 }, // .Inverse
+		{ 18, 16 }, // .Inverse
+		{ 19, 0 },
+		{ 20, 0 },
+		{ 21, 21 }, // 24
+		{ 22, 20 }
+	};
 
 }

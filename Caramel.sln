@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.13.35507.96 d17.13
+VisualStudioVersion = 17.13.35507.96
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Caramel", "Caramel\Caramel.csproj", "{1EF9A791-4904-7535-CCED-53DAB59D9E68}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CaramelWeb", "Web\CaramelWeb\CaramelWeb.csproj", "{86CB400A-32B8-952B-948B-998BC5B358AE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{1EF9A791-4904-7535-CCED-53DAB59D9E68}.Debug|x64.Build.0 = Debug|x64
 		{1EF9A791-4904-7535-CCED-53DAB59D9E68}.Release|x64.ActiveCfg = Release|x64
 		{1EF9A791-4904-7535-CCED-53DAB59D9E68}.Release|x64.Build.0 = Release|x64
+		{86CB400A-32B8-952B-948B-998BC5B358AE}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{86CB400A-32B8-952B-948B-998BC5B358AE}.Debug|x64.Build.0 = Debug|Any CPU
+		{86CB400A-32B8-952B-948B-998BC5B358AE}.Release|x64.ActiveCfg = Release|Any CPU
+		{86CB400A-32B8-952B-948B-998BC5B358AE}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
