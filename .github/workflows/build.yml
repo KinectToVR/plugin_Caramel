@@ -21,7 +21,7 @@ jobs:
 
       - name: Pack published files
         run: |
-          cd Caramel/bin/Release/net7.0/win10-x64/publish
+          cd Caramel/bin/Release/net8.0/win-x64/publish
           7z a plugin_Caramel.zip *
         
       - name: Upload plugin artifact
@@ -32,5 +32,5 @@ jobs:
           prerelease: true
           title: "plugin_Caramel Build Artifact"
           files: |
-            ./Caramel/bin/Release/net7.0/win10-x64/publish/plugin_Caramel.zip
+            ./Caramel/bin/Release/net8.0/win-x64/publish/plugin_Caramel.zip
             ./external/manifest.json
