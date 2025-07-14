@@ -1,0 +1,53 @@
+{
+  "language": "it",
+  "messages": [
+    {
+      "id": "/Statuses/Success",
+      "translation": "Successo!\nS_OK\nTutto a posto!"
+    },
+    {
+      "id": "/Statuses/ConnectionDead",
+      "translation": "Errore di connessione!\nE_CONNECTION_DEAD\nControlla se l'app Caramel è in esecuzione, funziona ed è connessa."
+    },
+    {
+      "id": "/Statuses/gRPC",
+      "translation": "Errore di connessione!\nE_GRPC\ngRPC non è riuscito a impostare il suo server. Codice {0}: {1}"
+    },
+    {
+      "id": "/Statuses/InitFailure",
+      "translation": "Avvio del listener fallito!\nE_INIT_FAILED\nIl server dati non è riuscito ad avviarsi, controlla i log e il numero di porta."
+    },
+    {
+      "id": "/Statuses/NoPorts",
+      "translation": "Configurazione porte fallita!\nE_PORTS_TAKEN\nLa porta non è disponibile! (Chiudi tutte le altre app relative a owoTrack)"
+    },
+    {
+      "id": "/Statuses/NotStarted",
+      "translation": "Errore di connessione!\nE_NOT_STARTED\nPremi il pulsante 'Aggiorna' per avviare il listener del server."
+    },
+    {
+      "id": "/Settings/Labels/LocalIP/One",
+      "translation": "Il tuo IP locale:"
+    },
+    {
+      "id": "/Settings/Labels/LocalIP/Multiple",
+      "translation": "Il tuo IP locale: (Uno di)"
+    },
+    {
+      "id": "/Settings/Labels/Port",
+      "translation": "Porta di connessione:"
+    },
+    {
+      "id": "/Settings/Notices/NotStarted",
+      "translation": "Avvia prima il server!"
+    },
+    {
+      "id": "/Settings/Notices/NotConnected",
+      "translation": "Collega il tuo telefono!"
+    },
+    {
+      "id": "/Settings/Notices/Failure",
+      "translation": "Il server non è riuscito ad avviarsi!"
+    }
+  ]
+}
